@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Deck of Destiny</title>
+    <meta
+      name="description"
+      content="Play Deck of Destiny in your browser and keep the full rules in a separate tab."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <nav class="topbar" aria-label="Primary">
+          <span class="brand">Deck of Destiny</span>
+          <div class="nav-links">
+            <button class="nav-tab active" data-tab="play" type="button">Play</button>
+            <button class="nav-tab" data-tab="rules" type="button">Rules</button>
+          </div>
+        </nav>
+
+        <div class="hero-content">
+          <div class="hero-copy">
+            <p class="eyebrow">3-6 players • 15 rounds • browser prototype</p>
+            <h1>Play now. Keep the rules one tab away.</h1>
+            <p class="hero-text">
+              This version lets one human player face off against AI opponents
+              in a complete 15-round match while keeping the official rules in a
+              dedicated tab for quick reference.
+            </p>
+            <div class="hero-actions">
+              <button class="button button-primary" data-tab-jump="play" type="button">
+                Open Play Table
+              </button>
+              <button class="button button-secondary" data-tab-jump="rules" type="button">
+                Open Rules
+              </button>
+            </div>
+          </div>
+
+          <aside class="hero-panel" aria-label="Game snapshot">
+            <div class="stat-card">
+              <span class="stat-label">Prototype Mode</span>
+              <strong>1 human player vs 2-5 bots</strong>
+            </div>
+            <div class="stat-grid">
+              <article class="mini-stat">
+                <span>Rounds</span>
+                <strong>15</strong>
+                <small>Full match</small>
+              </article>
+              <article class="mini-stat">
+                <span>Number Hand</span>
+                <strong>15</strong>
+                <small>Low and mid values are more common</small>
+              </article>
+              <article class="mini-stat">
+                <span>Action Hand</span>
+                <strong>5</strong>
+                <small>Safer effects show up more often</small>
+              </article>
+              <article class="mini-stat">
+                <span>Resolution</span>
+                <strong>Automated</strong>
+                <small>Rules order applied</small>
+              </article>
+            </div>
+          </aside>
+        </div>
+      </header>
+
+      <main>
+        <section class="tab-panel active" id="tab-play" aria-labelledby="play-tab">
+          <section class="section">
+            <div class="section-heading">
+              <p class="section-kicker">Play Mode</p>
+              <h2>Set the table and play a full match</h2>
+            </div>
+
+            <div class="play-layout">
+              <article class="setup-card">
+                <h3>New Game</h3>
+                <label class="field" for="player-count">
+                  <span>Total Players</span>
+                  <select id="player-count">
+                    <option value="3">3 players</option>
+                    <option value="4" selected>4 players</option>
+                    <option value="5">5 players</option>
+                    <option value="6">6 players</option>
+                  </select>
+                </label>
+                <p class="setup-note">
+                  You control Player 1. The rest of the table uses simple AI.
+                </p>
+                <div class="setup-actions">
+                  <button class="button button-primary" id="start-game" type="button">
+                    Start New Game
+                  </button>
+                </div>
+              </article>
+
+              <article class="status-card">
+                <div class="status-header">
+                  <div>
+                    <p class="section-kicker">Match Status</p>
+                    <h3 id="round-label">No game running</h3>
+                  </div>
+                  <span class="pill" id="phase-pill">Waiting</span>
+                </div>
+                <p id="status-message">
+                  Start a game to deal hands, choose your cards, and resolve the
+                  round automatically.
+                </p>
+              </article>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-heading">
+              <p class="section-kicker">Scoreboard</p>
+              <h2>Track points, cards, and revealed plays</h2>
+            </div>
+            <div class="scoreboard" id="scoreboard"></div>
+          </section>
+
+          <section class="section">
+            <div class="section-heading">
+              <p class="section-kicker">Your Turn</p>
+              <h2>Choose a number, an action, or both</h2>
+            </div>
+
+            <div class="selection-layout">
+              <article class="selection-card">
+                <div class="selection-header">
+                  <h3>Number Cards</h3>
+                  <button class="text-button" id="clear-number" type="button">
+                    Clear Number
+                  </button>
+                </div>
+                <div class="hand-grid" id="number-hand"></div>
+              </article>
+
+              <article class="selection-card">
+                <div class="selection-header">
+                  <h3>Action Cards</h3>
+                  <button class="text-button" id="clear-action" type="button">
+                    Clear Action
+                  </button>
+                </div>
+                <div class="hand-grid" id="action-hand"></div>
+              </article>
+            </div>
+
+            <article class="target-card" id="target-card">
+              <div class="selection-header">
+                <h3>Choose a Target</h3>
+                <span class="pill subtle" id="target-hint">Optional</span>
+              </div>
+              <div class="target-grid" id="target-grid"></div>
+            </article>
+
+            <article class="selection-summary">
+              <div>
+                <p class="section-kicker">Current Choice</p>
+                <h3 id="selection-title">Nothing selected yet</h3>
+                <p id="selection-text">
+                  Pick at least one card. If you play two cards, they must be one
+                  number and one action.
+                </p>
+              </div>
+              <div class="setup-actions">
+                <button class="button button-secondary" id="clear-selection" type="button">
+                  Clear Selection
+                </button>
+                <button class="button button-primary" id="play-round" type="button">
+                  Reveal My Play
+                </button>
+              </div>
+            </article>
+          </section>
+
+          <section class="section">
+            <div class="section-heading">
+              <p class="section-kicker">Round Log</p>
+              <h2>See exactly how each reveal resolved</h2>
+            </div>
+            <div class="log-list" id="round-log"></div>
+          </section>
+        </section>
+
+        <section class="tab-panel" id="tab-rules" aria-labelledby="rules-tab">
+          <section class="section" id="overview">
+            <div class="section-heading">
+              <p class="section-kicker">Overview</p>
+              <h2>What players are trying to do</h2>
+            </div>
+            <div class="card-grid card-grid-two">
+              <article class="info-card">
+                <h3>Objective</h3>
+                <p>
+                  Play 15 rounds and finish with the most Destiny Points by
+                  winning rounds with number cards and using action cards at the
+                  right time.
+                </p>
+              </article>
+              <article class="info-card">
+                <h3>Setup</h3>
+                <ul>
+                  <li>Shuffle the Number Deck and deal 15 number cards to each player.</li>
+                  <li>Shuffle the Action Deck and deal 5 action cards to each player.</li>
+                  <li>Each player begins with a 20-card hand.</li>
+                  <li>Return any leftover cards to the box.</li>
+                  <li>Rebalanced deck: low and mid number cards are more common than 11s and 12s.</li>
+                </ul>
+              </article>
+            </div>
+          </section>
+
+          <section class="section" id="flow">
+            <div class="section-heading">
+              <p class="section-kicker">Game Flow</p>
+              <h2>Every round follows the same 3-step rhythm</h2>
+            </div>
+
+            <div class="timeline">
+              <article class="timeline-step reveal-on-scroll">
+                <span class="step-number">1</span>
+                <div>
+                  <h3>Choose a Card</h3>
+                  <p>
+                    Each player secretly chooses 1 or 2 cards and places them
+                    face down. If you play 2 cards, one must be a number card and
+                    one must be an action card.
+                  </p>
+                </div>
+              </article>
+              <article class="timeline-step reveal-on-scroll">
+                <span class="step-number">2</span>
+                <div>
+                  <h3>Reveal</h3>
+                  <p>
+                    All players flip their chosen cards face up at the same time.
+                  </p>
+                </div>
+              </article>
+              <article class="timeline-step reveal-on-scroll">
+                <span class="step-number">3</span>
+                <div>
+                  <h3>Resolve</h3>
+                  <p>
+                    Resolve action effects by priority, compare final numbers, and
+                    award Destiny Points for the round.
+                  </p>
+                </div>
+              </article>
+            </div>
+
+            <article class="rule-banner">
+              <h3>Important exception</h3>
+              <p>
+                If a player runs out of number cards before round 15, they may
+                continue by playing only action cards.
+              </p>
+            </article>
+          </section>
+
+          <section class="section" id="actions">
+            <div class="section-heading">
+              <p class="section-kicker">Action Cards</p>
+              <h2>Six one-use effects that can flip a round</h2>
+            </div>
+
+            <div class="action-grid">
+              <article class="action-card boost">
+                <h3>Boost (+3)</h3>
+                <p>Adds 3 to your number this round.</p>
+                <p class="action-note">If played alone, it counts as 0 + 3.</p>
+              </article>
+              <article class="action-card shield">
+                <h3>Shield</h3>
+                <p>
+                  Protects your card from being altered. Ignore effects that would
+                  lower, steal, or swap it.
+                </p>
+              </article>
+              <article class="action-card swap">
+                <h3>Swap</h3>
+                <p>
+                  Choose another player and swap your revealed number with theirs
+                  before scoring.
+                </p>
+              </article>
+              <article class="action-card double">
+                <h3>Double Down</h3>
+                <p>Your card’s value is doubled.</p>
+                <p class="action-note">Maximum value after doubling is 18.</p>
+              </article>
+              <article class="action-card drain">
+                <h3>Drain (-3)</h3>
+                <p>Choose an opponent and reduce their number by 3.</p>
+                <p class="action-note">A reduced value cannot go below 0.</p>
+              </article>
+              <article class="action-card steal">
+                <h3>Steal Point</h3>
+                <p>
+                  If you do not win the round, steal 1 Destiny Point from the
+                  winner, but only if the winner has at least 2 points.
+                </p>
+              </article>
+            </div>
+          </section>
+
+          <section class="section" id="priority">
+            <div class="section-heading">
+              <p class="section-kicker">Resolution Order</p>
+              <h2>Action timing matters as much as the card itself</h2>
+            </div>
+
+            <div class="priority-panel">
+              <div class="priority-list" role="list" aria-label="Resolution order">
+                <button class="priority-item active" data-priority="shield" type="button">
+                  1. Shields activate
+                </button>
+                <button class="priority-item" data-priority="drain" type="button">
+                  2. Drains apply
+                </button>
+                <button class="priority-item" data-priority="swap" type="button">
+                  3. Swaps occur
+                </button>
+                <button class="priority-item" data-priority="power" type="button">
+                  4. Doubling and Boosts apply
+                </button>
+                <button class="priority-item" data-priority="score" type="button">
+                  5. Compare numbers and score
+                </button>
+                <button class="priority-item" data-priority="steal" type="button">
+                  6. Steal Point resolves last
+                </button>
+              </div>
+              <article class="priority-detail" id="priority-detail">
+                <h3>Shields activate first</h3>
+                <p>
+                  Protection is established before any lowering or swapping effects
+                  can touch a card.
+                </p>
+              </article>
+            </div>
+          </section>
+
+          <section class="section" id="victory">
+            <div class="section-heading">
+              <p class="section-kicker">Scoring & Winning</p>
+              <h2>Rounds reward aggression, but ties punish everyone else</h2>
+            </div>
+
+            <div class="card-grid card-grid-three">
+              <article class="info-card">
+                <h3>Round Winner</h3>
+                <p>
+                  The highest final total wins the round and gains 1 Destiny
+                  Point.
+                </p>
+              </article>
+              <article class="info-card">
+                <h3>Tied for First</h3>
+                <p>
+                  Players tied for first do not lose a point. Every other player
+                  loses 1 Destiny Point if they have one to lose.
+                </p>
+              </article>
+              <article class="info-card">
+                <h3>End of Game</h3>
+                <p>
+                  After 15 rounds, the player with the most Destiny Points wins.
+                </p>
+              </article>
+            </div>
+
+            <article class="tiebreak-card">
+              <h3>Tiebreakers</h3>
+              <ol>
+                <li>Most action cards remaining.</li>
+                <li>If still tied, the tied players share the victory.</li>
+              </ol>
+            </article>
+          </section>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
