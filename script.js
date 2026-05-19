@@ -70,6 +70,7 @@ const state = {
   currentRound: 0,
   players: [],
   phase: "waiting",
+  difficulty: "medium",
   selectedNumberId: null,
   selectedActionId: null,
   selectedTargetId: null,
@@ -90,9 +91,11 @@ const priorityButtons = document.querySelectorAll(".priority-item");
 const priorityDetail = document.querySelector("#priority-detail");
 
 const playerCountSelect = document.querySelector("#player-count");
+const difficultySelect = document.querySelector("#ai-difficulty");
 const startButton = document.querySelector("#start-game");
 const roundLabel = document.querySelector("#round-label");
 const phasePill = document.querySelector("#phase-pill");
+const difficultyPill = document.querySelector("#difficulty-pill");
 const statusMessage = document.querySelector("#status-message");
 const scoreboard = document.querySelector("#scoreboard");
 const numberHand = document.querySelector("#number-hand");
@@ -213,6 +216,61 @@ function botTargetFor(player, actionType, otherPlayers) {
   return otherPlayers[0].id;
 }
 
+function difficultyLabel(value) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function displayedDifficulty() {
+  if (state.phase === "waiting") {
+    return difficultySelect.value;
+  }
+  return state.difficulty;
+}
+
+function pickRandom(items) {
+  if (!items.length) return null;
+  return items[Math.floor(Math.random() * items.length)];
+}
+
+function getNumberBands(numbers) {
+  const sorted = [...numbers].sort((a, b) => a.value - b.value);
+  const sliceSize = Math.max(1, Math.ceil(sorted.length / 3));
+  const low = sorted.slice(0, sliceSize);
+  const high = sorted.slice(Math.max(0, sorted.length - sliceSize));
+  const midStart = sliceSize;
+  const midEnd = Math.max(midStart + 1, sorted.length - sliceSize);
+  const mid = sorted.slice(midStart, midEnd);
+
+  return {
+    sorted,
+    low,
+    mid: mid.length ? mid : sorted,
+    high,
+  };
+}
+
+function getActionPriorityForDifficulty(numberValue, difficulty) {
+  if (difficulty === "easy") {
+    if (numberValue >= 8) return { boost: 0, double: 1, swap: 2, shield: 3, drain: 4, steal: 5 };
+    return { steal: 0, double: 1, boost: 2, swap: 3, drain: 4, shield: 5 };
+  }
+
+  if (difficulty === "hard") {
+    if (numberValue >= 9) return { shield: 0, boost: 1, double: 2, drain: 3, swap: 4, steal: 5 };
+    if (numberValue <= 4) return { shield: 0, drain: 1, steal: 2, swap: 3, boost: 4, double: 5 };
+    return { drain: 0, boost: 1, shield: 2, swap: 3, double: 4, steal: 5 };
+  }
+
+  if (numberValue >= 8) return { boost: 0, shield: 1, double: 2, drain: 3, swap: 4, steal: 5 };
+  if (numberValue <= 4) return { shield: 0, drain: 1, boost: 2, steal: 3, swap: 4, double: 5 };
+  return { shield: 0, boost: 1, drain: 2, swap: 3, double: 4, steal: 5 };
+}
+
+function sortActionsForDifficulty(actions, numberValue, difficulty) {
+  const order = getActionPriorityForDifficulty(numberValue, difficulty);
+  return [...actions].sort((a, b) => (order[a.type] ?? 99) - (order[b.type] ?? 99));
+}
+
 function chooseBotPlay(player) {
   const selected = {
     numberCard: null,
@@ -221,38 +279,61 @@ function chooseBotPlay(player) {
   };
 
   const otherPlayers = state.players.filter((candidate) => candidate.id !== player.id);
-  const sortedNumbers = [...player.numbers].sort((a, b) => b.value - a.value);
-  if (sortedNumbers.length) {
-    const pool = sortedNumbers.slice(0, Math.min(4, sortedNumbers.length));
-    selected.numberCard = pool[Math.floor(Math.random() * pool.length)];
+  const difficulty = player.aiDifficulty || state.difficulty;
+  const { sorted, low, mid, high } = getNumberBands(player.numbers);
+
+  if (difficulty === "easy") {
+    const pool = [...low, ...mid];
+    selected.numberCard = pickRandom(pool.length ? pool : sorted);
+  }
+
+  if (difficulty === "medium") {
+    const pool = player.points > 0 ? [...mid, ...high] : [...low, ...mid, ...high];
+    selected.numberCard = pickRandom(pool.length ? pool : sorted);
+  }
+
+  if (difficulty === "hard") {
+    const leadingScore = Math.max(...state.players.map((entry) => entry.points));
+    const behindLeader = player.points < leadingScore;
+    if (behindLeader) {
+      selected.numberCard = pickRandom(high.length ? high : sorted);
+    } else if (state.currentRound < 5) {
+      selected.numberCard = pickRandom(mid.length ? mid : sorted);
+    } else {
+      const pool = [...mid, ...high];
+      selected.numberCard = pickRandom(pool.length ? pool : sorted);
+    }
   }
 
   const wantsAction =
     player.actions.length > 0 &&
-    (selected.numberCard === null || Math.random() > 0.45);
+    (
+      selected.numberCard === null ||
+      (difficulty === "easy" && Math.random() > 0.25) ||
+      (difficulty === "medium" && Math.random() > 0.45) ||
+      (difficulty === "hard" &&
+        (
+          selected.numberCard.value <= 5 ||
+          selected.numberCard.value >= 9 ||
+          state.currentRound >= 10 ||
+          Math.random() > 0.62
+        ))
+    );
 
   if (wantsAction) {
-    let actionPool = [...player.actions];
-    if (selected.numberCard && selected.numberCard.value >= 8) {
-      actionPool = actionPool.sort((a, b) => {
-        const order = { boost: 0, shield: 1, double: 2, drain: 3, swap: 4, steal: 5 };
-        return order[a.type] - order[b.type];
-      });
-    }
-    if (selected.numberCard && selected.numberCard.value <= 4) {
-      actionPool = actionPool.sort((a, b) => {
-        const order = { shield: 0, drain: 1, boost: 2, steal: 3, swap: 4, double: 5 };
-        return order[a.type] - order[b.type];
-      });
-    }
+    const numberValue = selected.numberCard ? selected.numberCard.value : 0;
+    const actionPool = sortActionsForDifficulty(player.actions, numberValue, difficulty);
     selected.actionCard = actionPool[0];
+    if (difficulty === "easy" && player.actions.length > 1 && Math.random() > 0.45) {
+      selected.actionCard = pickRandom(player.actions);
+    }
     if (actionNeedsTarget(selected.actionCard)) {
       selected.targetId = botTargetFor(player, selected.actionCard.type, otherPlayers);
     }
   }
 
   if (!selected.numberCard && !selected.actionCard && player.actions.length > 0) {
-    selected.actionCard = player.actions[0];
+    selected.actionCard = sortActionsForDifficulty(player.actions, 0, difficulty)[0];
     if (actionNeedsTarget(selected.actionCard)) {
       selected.targetId = botTargetFor(player, selected.actionCard.type, otherPlayers);
     }
@@ -514,7 +595,11 @@ function playRound() {
 
 function startGame() {
   const count = Number(playerCountSelect.value);
-  state.players = dealCards(count);
+  state.difficulty = difficultySelect.value;
+  state.players = dealCards(count).map((player) => ({
+    ...player,
+    aiDifficulty: player.isHuman ? null : state.difficulty,
+  }));
   state.currentRound = 0;
   state.phase = "playing";
   state.selectedNumberId = null;
@@ -523,7 +608,7 @@ function startGame() {
   state.logs = [];
   state.lastRound = null;
   state.winnerText = "";
-  statusMessage.textContent = "Hands dealt. Choose your opening play.";
+  statusMessage.textContent = `Hands dealt. ${difficultyLabel(state.difficulty)} AI is ready. Choose your opening play.`;
   setActiveTab("play");
   render();
 }
@@ -560,7 +645,9 @@ function renderScoreboard() {
         <article class="score-card ${player.isHuman ? "active-player" : ""}">
           <div class="score-header">
             <h3>${player.name}</h3>
-            <span class="pill ${player.isHuman ? "" : "subtle"}">${player.isHuman ? "Human" : "Bot"}</span>
+            <span class="pill ${player.isHuman ? "" : "subtle"}">${
+              player.isHuman ? "Human" : `${difficultyLabel(player.aiDifficulty)} AI`
+            }</span>
           </div>
           <strong class="score-points">${player.points} DP</strong>
           <p class="score-meta">${player.numbers.length} number cards left • ${player.actions.length} action cards left</p>
@@ -663,6 +750,8 @@ function renderSelectionSummary() {
 }
 
 function renderStatus() {
+  difficultyPill.textContent = `Difficulty: ${difficultyLabel(displayedDifficulty())}`;
+
   if (state.phase === "waiting") {
     roundLabel.textContent = "No game running";
     phasePill.textContent = "Waiting";
@@ -802,6 +891,10 @@ actionHand.addEventListener("click", (event) => {
   state.selectedActionId = state.selectedActionId === id ? null : id;
   state.selectedTargetId = null;
   render();
+});
+
+difficultySelect.addEventListener("change", () => {
+  renderStatus();
 });
 
 targetGrid.addEventListener("click", (event) => {

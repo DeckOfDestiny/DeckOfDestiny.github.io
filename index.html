@@ -8,6 +8,7 @@
       name="description"
       content="Play Deck of Destiny in your browser and keep the full rules in a separate tab."
     />
+    <meta name="theme-color" content="#130f1f" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -31,7 +32,7 @@
         <div class="hero-content">
           <div class="hero-copy">
             <p class="eyebrow">3-6 players • 15 rounds • browser prototype</p>
-            <h1>Play now. Keep the rules one tab away.</h1>
+            <h1>Play at a glowing fate table built for bluffing and big turns.</h1>
             <p class="hero-text">
               This version lets one human player face off against AI opponents
               in a complete 15-round match while keeping the official rules in a
@@ -49,8 +50,8 @@
 
           <aside class="hero-panel" aria-label="Game snapshot">
             <div class="stat-card">
-              <span class="stat-label">Prototype Mode</span>
-              <strong>1 human player vs 2-5 bots</strong>
+              <span class="stat-label">Oracle Table</span>
+              <strong>1 human player vs 2-5 fate-driven bots</strong>
             </div>
             <div class="stat-grid">
               <article class="mini-stat">
@@ -98,8 +99,16 @@
                     <option value="6">6 players</option>
                   </select>
                 </label>
+                <label class="field" for="ai-difficulty">
+                  <span>AI Difficulty</span>
+                  <select id="ai-difficulty">
+                    <option value="easy">Easy</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                </label>
                 <p class="setup-note">
-                  You control Player 1. The rest of the table uses simple AI.
+                  You control Player 1. Easy bots are loose and impulsive, medium bots are balanced, and hard bots manage big cards more carefully.
                 </p>
                 <div class="setup-actions">
                   <button class="button button-primary" id="start-game" type="button">
@@ -115,6 +124,9 @@
                     <h3 id="round-label">No game running</h3>
                   </div>
                   <span class="pill" id="phase-pill">Waiting</span>
+                </div>
+                <div class="status-meta">
+                  <span class="pill subtle" id="difficulty-pill">Difficulty: Medium</span>
                 </div>
                 <p id="status-message">
                   Start a game to deal hands, choose your cards, and resolve the
