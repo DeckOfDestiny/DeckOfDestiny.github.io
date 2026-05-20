@@ -31,10 +31,10 @@ body {
   font-family: "Space Grotesk", sans-serif;
   color: var(--text);
   background:
-    radial-gradient(circle at top left, rgba(141, 120, 255, 0.18), transparent 24rem),
-    radial-gradient(circle at 85% 10%, rgba(99, 192, 177, 0.12), transparent 20rem),
-    radial-gradient(circle at 45% 0%, rgba(240, 200, 110, 0.08), transparent 18rem),
-    linear-gradient(180deg, #17112d 0%, #090914 100%);
+    radial-gradient(circle at top left, rgba(141, 120, 255, 0.22), transparent 24rem),
+    radial-gradient(circle at 85% 10%, rgba(99, 192, 177, 0.14), transparent 20rem),
+    radial-gradient(circle at 45% 0%, rgba(240, 200, 110, 0.1), transparent 18rem),
+    linear-gradient(180deg, #1a1434 0%, #090914 100%);
 }
 
 body::before {
@@ -45,9 +45,10 @@ body::before {
   opacity: 0.14;
   background-image:
     radial-gradient(circle at center, rgba(255, 255, 255, 0.22) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 20% 25%, rgba(240, 200, 110, 0.16) 0 1px, transparent 1.7px),
     linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: 120px 120px, 30px 30px, 30px 30px;
+  background-size: 120px 120px, 180px 180px, 30px 30px, 30px 30px;
 }
 
 body::after {
@@ -55,11 +56,12 @@ body::after {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.35;
+  opacity: 0.58;
   background:
-    radial-gradient(circle at 20% 15%, rgba(141, 120, 255, 0.12), transparent 18rem),
-    radial-gradient(circle at 75% 22%, rgba(99, 192, 177, 0.1), transparent 16rem),
-    radial-gradient(circle at 50% 75%, rgba(240, 200, 110, 0.08), transparent 20rem);
+    radial-gradient(circle at 20% 15%, rgba(141, 120, 255, 0.18), transparent 18rem),
+    radial-gradient(circle at 75% 22%, rgba(99, 192, 177, 0.15), transparent 16rem),
+    radial-gradient(circle at 50% 75%, rgba(240, 200, 110, 0.12), transparent 20rem),
+    radial-gradient(circle at 55% 45%, rgba(141, 120, 255, 0.08), transparent 14rem);
 }
 
 body.no-glow::after {
@@ -83,17 +85,35 @@ body.reduced-motion *::after {
 
 .spark-star {
   position: absolute;
-  width: 12px;
-  height: 12px;
-  margin-left: -6px;
-  margin-top: -6px;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  margin-top: -8px;
   border-radius: 999px;
   background:
-    radial-gradient(circle, rgba(251, 244, 203, 0.95) 0 28%, rgba(141, 120, 255, 0.7) 45%, transparent 70%);
+    radial-gradient(circle, rgba(251, 244, 203, 1) 0 18%, rgba(255, 255, 255, 0.95) 24%, rgba(141, 120, 255, 0.72) 45%, transparent 70%);
   box-shadow:
-    0 0 12px rgba(251, 244, 203, 0.7),
-    0 0 24px rgba(141, 120, 255, 0.45);
-  animation: sparkleFade 700ms ease-out forwards;
+    0 0 14px rgba(251, 244, 203, 0.85),
+    0 0 28px rgba(141, 120, 255, 0.55);
+  animation: sparkleFade 760ms ease-out forwards;
+}
+
+.spark-star::before,
+.spark-star::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 18px;
+  margin-left: -1px;
+  margin-top: -9px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+}
+
+.spark-star::after {
+  transform: rotate(90deg);
 }
 
 .app-shell {
@@ -359,9 +379,10 @@ select {
   padding: 1rem;
   min-height: 70vh;
   background:
-    radial-gradient(circle at center, rgba(77, 86, 166, 0.42), transparent 46%),
-    radial-gradient(circle at 20% 20%, rgba(240, 200, 110, 0.08), transparent 28%),
-    radial-gradient(circle at 80% 15%, rgba(99, 192, 177, 0.08), transparent 18%),
+    radial-gradient(circle at center, rgba(108, 92, 193, 0.42), transparent 46%),
+    radial-gradient(circle at 20% 20%, rgba(240, 200, 110, 0.12), transparent 28%),
+    radial-gradient(circle at 80% 15%, rgba(99, 192, 177, 0.12), transparent 18%),
+    radial-gradient(circle at 50% 50%, rgba(141, 120, 255, 0.08), transparent 12rem),
     linear-gradient(180deg, var(--felt) 0%, var(--felt-deep) 100%);
   border-radius: 32px;
 }
@@ -373,6 +394,19 @@ select {
   border-radius: 28px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   pointer-events: none;
+}
+
+.table-stage::after {
+  content: "";
+  position: absolute;
+  inset: 12% 16%;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.75;
+  box-shadow:
+    0 0 0 1px rgba(240, 200, 110, 0.06),
+    0 0 0 18px rgba(141, 120, 255, 0.03),
+    0 0 80px rgba(141, 120, 255, 0.12);
 }
 
 .deck-stack {
@@ -388,7 +422,8 @@ select {
   inset: 0;
   border-radius: 16px;
   background:
-    linear-gradient(135deg, rgba(12, 32, 70, 0.96), rgba(18, 58, 96, 0.96)),
+    radial-gradient(circle at 50% 38%, rgba(240, 200, 110, 0.16), transparent 22%),
+    linear-gradient(135deg, rgba(31, 24, 74, 0.96), rgba(18, 58, 96, 0.96)),
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 6px, transparent 6px 12px);
 }
 
@@ -449,9 +484,30 @@ select {
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background:
-    linear-gradient(135deg, rgba(8, 26, 58, 0.96), rgba(18, 58, 96, 0.96)),
+    radial-gradient(circle at 50% 40%, rgba(240, 200, 110, 0.18), transparent 20%),
+    linear-gradient(135deg, rgba(31, 24, 74, 0.96), rgba(18, 58, 96, 0.96)),
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 5px, transparent 5px 10px);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+}
+
+.card-back::after,
+.deck-stack span::after {
+  content: "🔮";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -54%);
+  font-size: 18px;
+  filter: drop-shadow(0 0 6px rgba(240, 200, 110, 0.4));
+}
+
+.card-back-glyph {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  opacity: 0.001;
 }
 
 .back-fan .card-back:first-child {
@@ -496,11 +552,30 @@ select {
   color: #1b1712;
 }
 
+.trick-card.faceup::after,
+.choice-card::after {
+  content: "✦";
+  position: absolute;
+  right: 0.8rem;
+  top: 0.75rem;
+  color: rgba(92, 74, 183, 0.7);
+  font-size: 0.95rem;
+}
+
 .trick-player {
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.trick-art {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  min-height: 2.6rem;
+  font-size: 1.65rem;
+  filter: drop-shadow(0 0 10px rgba(112, 92, 215, 0.18));
 }
 
 .trick-value {
@@ -581,6 +656,34 @@ select {
   transform: translateY(18px);
   opacity: 0;
   animation: dealIn 420ms ease forwards;
+  overflow: hidden;
+}
+
+.choice-card {
+  background:
+    radial-gradient(circle at 50% 18%, rgba(141, 120, 255, 0.08), transparent 24%),
+    linear-gradient(180deg, rgba(248, 240, 220, 0.98), rgba(227, 214, 188, 0.96));
+}
+
+.choice-card::before {
+  content: "🔮";
+  position: absolute;
+  right: 0.7rem;
+  bottom: 0.55rem;
+  font-size: 1rem;
+  opacity: 0.28;
+}
+
+.card-art {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin-bottom: 0.35rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(112, 92, 215, 0.16), rgba(255, 255, 255, 0));
+  font-size: 1.2rem;
+  filter: drop-shadow(0 0 8px rgba(112, 92, 215, 0.16));
 }
 
 .number-hand .choice-card:nth-child(1),
@@ -688,6 +791,10 @@ select {
   border-radius: 16px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.04);
+}
+
+.review-summary.waiting-review {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .review-summary strong {
@@ -924,15 +1031,15 @@ select {
 
 @keyframes sparkleFade {
   0% {
-    transform: scale(0.6);
+    transform: scale(0.45) rotate(0deg);
     opacity: 0;
   }
   25% {
-    transform: scale(1);
+    transform: scale(1) rotate(45deg);
     opacity: 1;
   }
   100% {
-    transform: scale(1.8);
+    transform: scale(1.9) rotate(90deg);
     opacity: 0;
   }
 }

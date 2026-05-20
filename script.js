@@ -55,6 +55,7 @@ const state = {
 let cardId = 0;
 let revealTimer = null;
 let dealTimer = null;
+let tableClearTimer = null;
 const RATING_KEY = "deck-of-destiny-rating";
 const SETTINGS_KEY = "deck-of-destiny-settings";
 
@@ -389,8 +390,10 @@ function setPlayScreen(mode) {
 function clearTimers() {
   if (revealTimer) window.clearTimeout(revealTimer);
   if (dealTimer) window.clearTimeout(dealTimer);
+  if (tableClearTimer) window.clearTimeout(tableClearTimer);
   revealTimer = null;
   dealTimer = null;
+  tableClearTimer = null;
 }
 
 function getHumanPlayer() {
@@ -416,6 +419,26 @@ function describePlay(play) {
   if (play.numberCard) parts.push(`Number ${play.numberCard.value}`);
   if (play.actionCard) parts.push(play.actionCard.label);
   return parts.length ? parts.join(" + ") : "No cards";
+}
+
+function actionGlyph(type) {
+  return (
+    {
+      boost: "✨",
+      shield: "🛡",
+      swap: "🜂",
+      double: "✶",
+      drain: "☾",
+      steal: "🜁",
+    }[type] || "🔮"
+  );
+}
+
+function numberGlyph(value) {
+  if (value >= 10) return "🔮";
+  if (value >= 7) return "✦";
+  if (value >= 4) return "☽";
+  return "✧";
 }
 
 function pickRandom(items) {
@@ -1022,11 +1045,18 @@ function finishReveal(summary) {
     statusMessage.textContent = state.winnerText;
     winOverlay.hidden = false;
     playUiSound("win");
+    tableClearTimer = null;
   } else {
     state.phase = "playing";
     statusMessage.textContent = summary.uniqueWinnerName
       ? `${summary.uniqueWinnerName} took round ${state.currentRound}. Choose your next play.`
       : `Round ${state.currentRound} ended in a tie for first. Choose your next play.`;
+    tableClearTimer = window.setTimeout(() => {
+      state.revealEntries = [];
+      state.revealMode = "idle";
+      render();
+      tableClearTimer = null;
+    }, settingsState.reducedMotion ? 500 : 1350);
   }
 
   render();
@@ -1109,7 +1139,7 @@ function renderOpponents() {
   opponentRow.innerHTML = opponents
     .map((player) => {
       const backCount = Math.min(player.numbers.length + player.actions.length, 6);
-      const backs = Array.from({ length: backCount }, () => `<span class="card-back"></span>`).join("");
+      const backs = Array.from({ length: backCount }, () => `<span class="card-back"><span class="card-back-glyph">🔮</span></span>`).join("");
       return `
         <article class="opponent-seat">
           <div class="seat-topline">
@@ -1141,14 +1171,17 @@ function renderTrickArea() {
         return `
           <article class="trick-card facedown" style="animation-delay:${index * 80}ms">
             <div class="trick-player">${entry.playerName}</div>
+            <div class="trick-art">🔮</div>
             <div class="trick-detail">Face-down play</div>
           </article>
         `;
       }
 
+      const primaryGlyph = entry.actionCard ? actionGlyph(entry.actionCard.type) : numberGlyph(entry.finalValue);
       return `
         <article class="trick-card faceup" style="animation-delay:${index * 80}ms">
           <div class="trick-player">${entry.playerName}</div>
+          <div class="trick-art">${primaryGlyph}</div>
           <div class="trick-value">${entry.finalValue}</div>
           <div class="trick-detail">${describePlay(entry)}</div>
         </article>
@@ -1194,6 +1227,7 @@ function renderChoiceGrid(container, cards, kind) {
       return kind === "number"
         ? `
           <button class="choice-card ${selected ? "selected" : ""}" data-kind="number" data-id="${card.id}" type="button">
+            <span class="card-art">${numberGlyph(card.value)}</span>
             <span class="choice-type">Number Card</span>
             <strong class="choice-value">${card.value}</strong>
             <span class="choice-subtitle">Play for this round</span>
@@ -1201,6 +1235,7 @@ function renderChoiceGrid(container, cards, kind) {
         `
         : `
           <button class="choice-card ${selected ? "selected" : ""}" data-kind="action" data-id="${card.id}" type="button">
+            <span class="card-art">${actionGlyph(card.type)}</span>
             <span class="choice-type">Action Card</span>
             <strong class="choice-value">${card.label}</strong>
             <span class="choice-subtitle">${actionMeta[card.type].needsTarget ? "Needs target" : "No target needed"}</span>
@@ -1288,10 +1323,22 @@ function renderLog() {
 }
 
 function renderReview() {
+  if (state.phase !== "finished") {
+    reviewSummary.innerHTML = `
+      <strong>Post-game review locked</strong>
+      <p>The review opens after the match, like a proper analysis screen. Finish the game to see your best moves, misses, and blunders.</p>
+    `;
+    reviewSummary.className = "waiting-review";
+    reviewList.innerHTML = "";
+    return;
+  }
+
+  reviewSummary.className = "";
+
   if (!state.reviewEntries.length) {
     reviewSummary.innerHTML = `
-      <strong>Review engine ready</strong>
-      <p>Every legal play from your hand is scored against the current table state. After your first round, this panel will show whether your move was best, good, or a mistake.</p>
+      <strong>No review data found</strong>
+      <p>This match ended without enough recorded decisions to score. Start another game and the review will build automatically.</p>
     `;
     reviewList.innerHTML = "";
     return;
