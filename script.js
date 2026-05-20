@@ -47,6 +47,9 @@ const state = {
   revealMode: "idle",
   rating: 1200,
   lastRatingDelta: 0,
+  comboDatabase: new Map(),
+  reviewEntries: [],
+  pendingReview: null,
 };
 
 let cardId = 0;
@@ -94,6 +97,8 @@ const ratingValue = document.querySelector("#rating-value");
 const ratingTier = document.querySelector("#rating-tier");
 const ratingNote = document.querySelector("#rating-note");
 const ratingResult = document.querySelector("#rating-result");
+const reviewSummary = document.querySelector("#review-summary");
+const reviewList = document.querySelector("#review-list");
 
 function safeReadRating() {
   try {
@@ -142,6 +147,68 @@ function ratingTierLabel(rating) {
   if (rating >= 1300) return "Rising Fortune";
   if (rating >= 1100) return "Rookie Table";
   return "New Challenger";
+}
+
+function comboKey(numberValue, actionType) {
+  return `${numberValue ?? "none"}|${actionType ?? "none"}`;
+}
+
+function getComboRecord(numberValue, actionType) {
+  const key = comboKey(numberValue, actionType);
+  if (state.comboDatabase.has(key)) {
+    return state.comboDatabase.get(key);
+  }
+
+  let baseScore = 0;
+  let volatility = 0;
+  let label = "";
+
+  if (numberValue !== null) {
+    baseScore += numberValue;
+    volatility += numberValue >= 9 ? 1.1 : numberValue <= 4 ? 0.4 : 0.7;
+    label = `Number ${numberValue}`;
+  }
+
+  if (actionType) {
+    const actionBonus =
+      actionType === "boost" ? 2.8 :
+      actionType === "shield" ? 2.1 :
+      actionType === "swap" ? 3.2 :
+      actionType === "double" ? 3.5 :
+      actionType === "drain" ? 2.9 :
+      2.4;
+    const actionVolatility =
+      actionType === "shield" ? 0.8 :
+      actionType === "boost" ? 0.9 :
+      actionType === "drain" ? 1 :
+      actionType === "double" ? 1.4 :
+      actionType === "swap" ? 1.5 :
+      1.25;
+    baseScore += actionBonus;
+    volatility += actionVolatility;
+    label = label ? `${label} + ${actionMeta[actionType].name}` : actionMeta[actionType].name;
+  }
+
+  const record = {
+    key,
+    label: label || "Pass",
+    baseScore,
+    volatility,
+  };
+  state.comboDatabase.set(key, record);
+  return record;
+}
+
+function ensureComboDatabase() {
+  for (let numberValue = 1; numberValue <= 12; numberValue += 1) {
+    getComboRecord(numberValue, null);
+    Object.keys(actionMeta).forEach((actionType) => {
+      getComboRecord(numberValue, actionType);
+    });
+  }
+  Object.keys(actionMeta).forEach((actionType) => {
+    getComboRecord(null, actionType);
+  });
 }
 
 function createNumberDeck() {
@@ -310,6 +377,181 @@ function botTargetFor(player, actionType, otherPlayers) {
   const sorted = [...otherPlayers].sort((a, b) => b.points - a.points);
   if (actionType === "drain" || actionType === "swap") return sorted[0].id;
   return otherPlayers[0].id;
+}
+
+function findTargetForReview(play, players) {
+  if (!play.actionCard || !actionNeedsTarget(play.actionCard)) return null;
+  return players.find((player) => player.id === play.targetId) || null;
+}
+
+function scorePlayCandidate(play, context) {
+  const human = context.human;
+  const leaders = [...context.players].sort((a, b) => b.points - a.points);
+  const currentLeader = leaders[0];
+  const numberValue = play.numberCard ? play.numberCard.value : null;
+  const actionType = play.actionCard ? play.actionCard.type : null;
+  const record = getComboRecord(numberValue, actionType);
+  const target = findTargetForReview(play, context.players);
+
+  let score = record.baseScore;
+  const roundPressure = context.round / context.totalRounds;
+  const ahead = currentLeader && human.points >= currentLeader.points;
+
+  if (numberValue !== null) {
+    if (ahead && roundPressure < 0.45 && numberValue >= 10) score -= 1.25;
+    if (!ahead && roundPressure > 0.55 && numberValue >= 9) score += 1.1;
+    if (ahead && numberValue >= 11) score -= 0.65;
+    if (roundPressure < 0.25 && numberValue <= 5) score += 0.3;
+  }
+
+  if (!actionType && numberValue !== null && numberValue >= 9 && roundPressure < 0.3) {
+    score -= 0.55;
+  }
+
+  if (actionType === "boost") {
+    if (numberValue === null) score -= 1.1;
+    if (numberValue !== null && numberValue >= 7 && numberValue <= 9) score += 0.9;
+  }
+
+  if (actionType === "double") {
+    if (numberValue === null) score -= 1.6;
+    if (numberValue !== null && numberValue >= 6 && numberValue <= 9) score += 1.25;
+    if (numberValue !== null && numberValue <= 3) score -= 0.5;
+  }
+
+  if (actionType === "shield") {
+    if (numberValue !== null && numberValue >= 8) score += 1;
+    if (ahead) score += 0.4;
+  }
+
+  if (actionType === "drain") {
+    if (!target) score -= 1;
+    if (target) {
+      score += Math.min(1.4, target.points * 0.3);
+      score += target.numbers.length <= 6 ? 0.4 : 0;
+    }
+  }
+
+  if (actionType === "swap") {
+    if (numberValue === null) score -= 0.8;
+    if (numberValue !== null && numberValue <= 5) score += 1.1;
+    if (target) score += Math.min(1.2, target.points * 0.25);
+  }
+
+  if (actionType === "steal") {
+    const richLeader = leaders.find((player) => player.id !== human.id && player.points >= 2);
+    if (richLeader) score += 1;
+    if (ahead) score -= 1.1;
+    if (numberValue !== null && numberValue >= 9) score -= 0.5;
+  }
+
+  if (target) {
+    if (target.id === currentLeader?.id) score += 0.55;
+  }
+
+  score += Math.min(0.6, roundPressure * 0.9);
+
+  return {
+    score,
+    label: record.label,
+    key: record.key,
+  };
+}
+
+function enumerateLegalHumanPlays() {
+  const human = getHumanPlayer();
+  if (!human) return [];
+  const opponents = state.players.filter((player) => !player.isHuman);
+  const plays = [];
+
+  human.numbers.forEach((numberCard) => {
+    plays.push({ numberCard, actionCard: null, targetId: null });
+  });
+
+  human.actions.forEach((actionCard) => {
+    if (actionNeedsTarget(actionCard)) {
+      opponents.forEach((target) => {
+        plays.push({ numberCard: null, actionCard, targetId: target.id });
+      });
+    } else {
+      plays.push({ numberCard: null, actionCard, targetId: null });
+    }
+  });
+
+  human.numbers.forEach((numberCard) => {
+    human.actions.forEach((actionCard) => {
+      if (actionNeedsTarget(actionCard)) {
+        opponents.forEach((target) => {
+          plays.push({ numberCard, actionCard, targetId: target.id });
+        });
+      } else {
+        plays.push({ numberCard, actionCard, targetId: null });
+      }
+    });
+  });
+
+  return plays;
+}
+
+function classifyReviewLoss(loss) {
+  if (loss <= 0.2) return { label: "Best", className: "review-best" };
+  if (loss <= 0.55) return { label: "Great", className: "review-great" };
+  if (loss <= 1.1) return { label: "Good", className: "review-good" };
+  if (loss <= 1.8) return { label: "Inaccuracy", className: "review-inaccuracy" };
+  if (loss <= 2.7) return { label: "Mistake", className: "review-mistake" };
+  return { label: "Blunder", className: "review-blunder" };
+}
+
+function analyzeHumanDecision(actualPlay) {
+  const human = getHumanPlayer();
+  if (!human) return null;
+
+  const context = {
+    human,
+    players: state.players,
+    round: state.currentRound + 1,
+    totalRounds: state.totalRounds,
+  };
+
+  const candidates = enumerateLegalHumanPlays()
+    .map((play) => {
+      const evaluation = scorePlayCandidate(play, context);
+      return {
+        ...play,
+        ...evaluation,
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const actualKey = [
+    actualPlay.numberCard ? actualPlay.numberCard.id : "none",
+    actualPlay.actionCard ? actualPlay.actionCard.id : "none",
+    actualPlay.targetId || "none",
+  ].join("|");
+
+  const actual = candidates.find((candidate) => [
+    candidate.numberCard ? candidate.numberCard.id : "none",
+    candidate.actionCard ? candidate.actionCard.id : "none",
+    candidate.targetId || "none",
+  ].join("|") === actualKey);
+
+  const best = candidates[0];
+  if (!actual || !best) return null;
+
+  const loss = Math.max(0, best.score - actual.score);
+  const classification = classifyReviewLoss(loss);
+  const bestTarget = best.targetId ? state.players.find((player) => player.id === best.targetId) : null;
+
+  return {
+    round: state.currentRound + 1,
+    classification,
+    actualLabel: actual.label,
+    actualScore: actual.score,
+    bestLabel: best.label,
+    bestScore: best.score,
+    bestTargetLabel: bestTarget ? ` on ${bestTarget.name}` : "",
+    loss,
+  };
 }
 
 function chooseBotPlay(player) {
@@ -608,6 +850,8 @@ function startGame() {
   state.revealEntries = [];
   state.revealMode = "idle";
   state.lastRatingDelta = 0;
+  state.reviewEntries = [];
+  state.pendingReview = null;
   deckStack.classList.add("dealing");
   winOverlay.hidden = true;
   ratingResult.textContent = "Rating pending...";
@@ -636,6 +880,8 @@ function resetToLobby() {
   state.revealEntries = [];
   state.revealMode = "idle";
   state.lastRatingDelta = 0;
+  state.reviewEntries = [];
+  state.pendingReview = null;
   deckStack.classList.remove("dealing");
   winOverlay.hidden = true;
   setPlayScreen("lobby");
@@ -671,6 +917,7 @@ function playRound() {
     statusMessage.textContent = humanPlay.error;
     return;
   }
+  state.pendingReview = analyzeHumanDecision(humanPlay);
 
   const plays = [humanPlay];
   state.players.forEach((player) => {
@@ -696,6 +943,14 @@ function playRound() {
   render();
 
   const summary = resolveRound(plays);
+  if (state.pendingReview) {
+    state.reviewEntries.unshift({
+      ...state.pendingReview,
+      outcome: summary.uniqueWinnerName === "You" ? "You won the round." : summary.uniqueWinnerName ? `${summary.uniqueWinnerName} won the round.` : "The round ended tied for first.",
+    });
+    state.reviewEntries = state.reviewEntries.slice(0, 8);
+    state.pendingReview = null;
+  }
   revealTimer = window.setTimeout(() => finishReveal(summary), 950);
 }
 
@@ -909,6 +1164,37 @@ function renderLog() {
     .join("");
 }
 
+function renderReview() {
+  if (!state.reviewEntries.length) {
+    reviewSummary.innerHTML = `
+      <strong>Review engine ready</strong>
+      <p>Every legal play from your hand is scored against the current table state. After your first round, this panel will show whether your move was best, good, or a mistake.</p>
+    `;
+    reviewList.innerHTML = "";
+    return;
+  }
+
+  const latest = state.reviewEntries[0];
+  reviewSummary.innerHTML = `
+    <strong>Round ${latest.round}: ${latest.classification.label}</strong>
+    <p>You played <strong>${latest.actualLabel}</strong>. The top recommendation was <strong>${latest.bestLabel}${latest.bestTargetLabel}</strong>.</p>
+  `;
+
+  reviewList.innerHTML = state.reviewEntries
+    .map((entry) => `
+      <article class="review-item">
+        <div class="review-item-header">
+          <h4>Round ${entry.round}</h4>
+          <span class="review-badge ${entry.classification.className}">${entry.classification.label}</span>
+        </div>
+        <p>Played: <strong>${entry.actualLabel}</strong></p>
+        <p>Best line: <strong>${entry.bestLabel}${entry.bestTargetLabel}</strong></p>
+        <p>Score loss: ${entry.loss.toFixed(2)} • ${entry.outcome}</p>
+      </article>
+    `)
+    .join("");
+}
+
 function renderHands() {
   const human = getHumanPlayer();
   if (!human) {
@@ -946,6 +1232,7 @@ function render() {
   renderScoreboard();
   renderHands();
   renderLog();
+  renderReview();
   playRoundButton.disabled = state.phase !== "playing";
   clearSelectionButton.disabled = state.phase !== "playing";
   clearNumberButton.disabled = state.phase !== "playing";
@@ -1008,4 +1295,5 @@ targetGrid.addEventListener("click", (event) => {
 
 setPlayScreen("lobby");
 state.rating = safeReadRating();
+ensureComboDatabase();
 render();
