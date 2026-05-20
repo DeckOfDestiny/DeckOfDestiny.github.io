@@ -56,13 +56,16 @@ let cardId = 0;
 let revealTimer = null;
 let dealTimer = null;
 const RATING_KEY = "deck-of-destiny-rating";
+const SETTINGS_KEY = "deck-of-destiny-settings";
 
 const tabButtons = document.querySelectorAll(".nav-tab");
 const playPanel = document.querySelector("#tab-play");
 const rulesPanel = document.querySelector("#tab-rules");
+const settingsPanel = document.querySelector("#tab-settings");
 const lobbyScreen = document.querySelector("#lobby-screen");
 const tableScreen = document.querySelector("#table-screen");
 const deckStack = document.querySelector("#deck-stack");
+const magicTrail = document.querySelector("#magic-trail");
 
 const playerCountSelect = document.querySelector("#player-count");
 const difficultySelect = document.querySelector("#ai-difficulty");
@@ -99,6 +102,19 @@ const ratingNote = document.querySelector("#rating-note");
 const ratingResult = document.querySelector("#rating-result");
 const reviewSummary = document.querySelector("#review-summary");
 const reviewList = document.querySelector("#review-list");
+const starTrailSetting = document.querySelector("#setting-star-trail");
+const soundSetting = document.querySelector("#setting-sound");
+const glowSetting = document.querySelector("#setting-glow");
+const reducedMotionSetting = document.querySelector("#setting-reduced-motion");
+
+const settingsState = {
+  starTrail: true,
+  sound: true,
+  glow: true,
+  reducedMotion: false,
+};
+
+let audioContext = null;
 
 function safeReadRating() {
   try {
@@ -114,6 +130,29 @@ function safeReadRating() {
 function safeWriteRating(value) {
   try {
     window.localStorage.setItem(RATING_KEY, String(value));
+  } catch (_error) {
+    return;
+  }
+}
+
+function safeReadSettings() {
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return;
+    settingsState.starTrail = parsed.starTrail !== false;
+    settingsState.sound = parsed.sound !== false;
+    settingsState.glow = parsed.glow !== false;
+    settingsState.reducedMotion = parsed.reducedMotion === true;
+  } catch (_error) {
+    return;
+  }
+}
+
+function safeWriteSettings() {
+  try {
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settingsState));
   } catch (_error) {
     return;
   }
@@ -135,6 +174,83 @@ function shuffle(items) {
 
 function difficultyLabel(value) {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function applySettingsToDocument() {
+  document.body.classList.toggle("no-glow", !settingsState.glow);
+  document.body.classList.toggle("reduced-motion", settingsState.reducedMotion);
+  starTrailSetting.checked = settingsState.starTrail;
+  soundSetting.checked = settingsState.sound;
+  glowSetting.checked = settingsState.glow;
+  reducedMotionSetting.checked = settingsState.reducedMotion;
+}
+
+function ensureAudioContext() {
+  if (!settingsState.sound) return null;
+  if (!audioContext) {
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) return null;
+    audioContext = new AudioCtor();
+  }
+  if (audioContext.state === "suspended") {
+    audioContext.resume().catch(() => {});
+  }
+  return audioContext;
+}
+
+function playToneSequence(sequence) {
+  const ctx = ensureAudioContext();
+  if (!ctx || settingsState.reducedMotion) return;
+  const start = ctx.currentTime;
+
+  sequence.forEach((tone, index) => {
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = tone.type || "sine";
+    oscillator.frequency.value = tone.frequency;
+    gain.gain.setValueAtTime(0.0001, start + tone.at);
+    gain.gain.exponentialRampToValueAtTime(tone.volume ?? 0.045, start + tone.at + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + tone.at + tone.duration);
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.start(start + tone.at);
+    oscillator.stop(start + tone.at + tone.duration + 0.02);
+  });
+}
+
+function playUiSound(kind) {
+  if (!settingsState.sound) return;
+  if (kind === "click") {
+    playToneSequence([{ frequency: 520, at: 0, duration: 0.07, volume: 0.03, type: "triangle" }]);
+  } else if (kind === "deal") {
+    playToneSequence([
+      { frequency: 320, at: 0, duration: 0.08, volume: 0.025, type: "triangle" },
+      { frequency: 420, at: 0.06, duration: 0.08, volume: 0.02, type: "triangle" },
+    ]);
+  } else if (kind === "reveal") {
+    playToneSequence([
+      { frequency: 440, at: 0, duration: 0.09, volume: 0.03, type: "sine" },
+      { frequency: 660, at: 0.09, duration: 0.11, volume: 0.025, type: "sine" },
+    ]);
+  } else if (kind === "win") {
+    playToneSequence([
+      { frequency: 523.25, at: 0, duration: 0.12, volume: 0.04, type: "triangle" },
+      { frequency: 659.25, at: 0.12, duration: 0.12, volume: 0.04, type: "triangle" },
+      { frequency: 783.99, at: 0.24, duration: 0.18, volume: 0.04, type: "triangle" },
+    ]);
+  }
+}
+
+function spawnSparkle(x, y) {
+  if (!settingsState.starTrail || settingsState.reducedMotion) return;
+  const star = document.createElement("span");
+  star.className = "spark-star";
+  star.style.left = `${x}px`;
+  star.style.top = `${y}px`;
+  magicTrail.appendChild(star);
+  window.setTimeout(() => {
+    star.remove();
+  }, 700);
 }
 
 function displayedDifficulty() {
@@ -261,6 +377,7 @@ function setActiveTab(tab) {
   });
   playPanel.classList.toggle("active", tab === "play");
   rulesPanel.classList.toggle("active", tab === "rules");
+  settingsPanel.classList.toggle("active", tab === "settings");
 }
 
 function setPlayScreen(mode) {
@@ -838,6 +955,7 @@ function updateRating(resultScore) {
 
 function startGame() {
   clearTimers();
+  playUiSound("click");
   state.difficulty = difficultySelect.value;
   state.players = dealCards(Number(playerCountSelect.value));
   state.currentRound = 0;
@@ -863,6 +981,7 @@ function startGame() {
   dealTimer = window.setTimeout(() => {
     state.phase = "playing";
     deckStack.classList.remove("dealing");
+    playUiSound("deal");
     statusMessage.textContent = `Hands dealt. ${difficultyLabel(state.difficulty)} AI is ready. Choose your opening play.`;
     render();
   }, 1200);
@@ -870,6 +989,7 @@ function startGame() {
 
 function resetToLobby() {
   clearTimers();
+  playUiSound("click");
   state.phase = "waiting";
   state.players = [];
   state.logs = [];
@@ -891,6 +1011,7 @@ function resetToLobby() {
 function finishReveal(summary) {
   state.revealEntries = summary.entries;
   state.revealMode = "faceup";
+  playUiSound("reveal");
   state.logs.unshift(createLogMessage(summary));
   state.logs = state.logs.slice(0, 8);
   state.selectedNumberId = null;
@@ -900,6 +1021,7 @@ function finishReveal(summary) {
   if (evaluateGameEnd()) {
     statusMessage.textContent = state.winnerText;
     winOverlay.hidden = false;
+    playUiSound("win");
   } else {
     state.phase = "playing";
     statusMessage.textContent = summary.uniqueWinnerName
@@ -912,6 +1034,7 @@ function finishReveal(summary) {
 
 function playRound() {
   if (state.phase !== "playing") return;
+  playUiSound("click");
   const humanPlay = buildHumanPlay();
   if (humanPlay.error) {
     statusMessage.textContent = humanPlay.error;
@@ -1240,7 +1363,10 @@ function render() {
 }
 
 tabButtons.forEach((button) => {
-  button.addEventListener("click", () => setActiveTab(button.dataset.tab));
+  button.addEventListener("click", () => {
+    playUiSound("click");
+    setActiveTab(button.dataset.tab);
+  });
 });
 
 startButton.addEventListener("click", startGame);
@@ -1267,6 +1393,27 @@ clearSelectionButton.addEventListener("click", () => {
 });
 
 difficultySelect.addEventListener("change", renderStatus);
+starTrailSetting.addEventListener("change", () => {
+  settingsState.starTrail = starTrailSetting.checked;
+  safeWriteSettings();
+  applySettingsToDocument();
+});
+soundSetting.addEventListener("change", () => {
+  settingsState.sound = soundSetting.checked;
+  safeWriteSettings();
+  applySettingsToDocument();
+  playUiSound("click");
+});
+glowSetting.addEventListener("change", () => {
+  settingsState.glow = glowSetting.checked;
+  safeWriteSettings();
+  applySettingsToDocument();
+});
+reducedMotionSetting.addEventListener("change", () => {
+  settingsState.reducedMotion = reducedMotionSetting.checked;
+  safeWriteSettings();
+  applySettingsToDocument();
+});
 
 numberHand.addEventListener("click", (event) => {
   const button = event.target.closest("[data-kind='number']");
@@ -1295,5 +1442,15 @@ targetGrid.addEventListener("click", (event) => {
 
 setPlayScreen("lobby");
 state.rating = safeReadRating();
+safeReadSettings();
+applySettingsToDocument();
 ensureComboDatabase();
 render();
+
+let sparkleTick = 0;
+window.addEventListener("pointermove", (event) => {
+  if (!settingsState.starTrail || settingsState.reducedMotion) return;
+  sparkleTick += 1;
+  if (sparkleTick % 2 !== 0) return;
+  spawnSparkle(event.clientX, event.clientY);
+});

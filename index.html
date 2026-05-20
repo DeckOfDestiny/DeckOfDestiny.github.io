@@ -19,15 +19,17 @@
     <script src="script.js" defer></script>
   </head>
   <body>
+    <div class="magic-trail" id="magic-trail" aria-hidden="true"></div>
     <div class="app-shell">
       <header class="site-header">
         <div>
           <p class="eyebrow">Deck of Destiny</p>
-          <h1 class="site-title">A virtual card table built for live play.</h1>
+          <h1 class="site-title">A mystical card table built for live play.</h1>
         </div>
         <nav class="top-nav" aria-label="Primary">
           <button class="nav-tab active" data-tab="play" type="button">Play</button>
           <button class="nav-tab" data-tab="rules" type="button">Rules</button>
+          <button class="nav-tab" data-tab="settings" type="button">Settings</button>
         </nav>
       </header>
 
@@ -324,6 +326,54 @@
                 <li>If you run out of numbers, you may keep playing action cards only.</li>
                 <li>Tiebreaker: most action cards remaining, then shared victory.</li>
               </ul>
+            </article>
+          </section>
+        </section>
+
+        <section class="tab-panel" id="tab-settings">
+          <section class="settings-grid">
+            <article class="rules-card settings-card">
+              <p class="section-kicker">Effects</p>
+              <h2>Mystical Presentation</h2>
+              <div class="settings-list">
+                <label class="setting-row">
+                  <div>
+                    <strong>Star Trail</strong>
+                    <p>Show a sparkling star trail that follows the mouse.</p>
+                  </div>
+                  <input type="checkbox" id="setting-star-trail" />
+                </label>
+
+                <label class="setting-row">
+                  <div>
+                    <strong>Sound Effects</strong>
+                    <p>Play magical clicks, deal sounds, and match-finish chimes.</p>
+                  </div>
+                  <input type="checkbox" id="setting-sound" />
+                </label>
+
+                <label class="setting-row">
+                  <div>
+                    <strong>Ambient Glow</strong>
+                    <p>Keep the extra mystical background glow and aura styling on.</p>
+                  </div>
+                  <input type="checkbox" id="setting-glow" />
+                </label>
+              </div>
+            </article>
+
+            <article class="rules-card settings-card">
+              <p class="section-kicker">Accessibility</p>
+              <h2>Comfort Controls</h2>
+              <div class="settings-list">
+                <label class="setting-row">
+                  <div>
+                    <strong>Reduced Motion</strong>
+                    <p>Turn off flourish-heavy animations while keeping the game functional.</p>
+                  </div>
+                  <input type="checkbox" id="setting-reduced-motion" />
+                </label>
+              </div>
             </article>
           </section>
         </section>

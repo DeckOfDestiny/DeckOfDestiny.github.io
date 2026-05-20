@@ -1,9 +1,9 @@
 :root {
-  --bg: #0c1714;
-  --felt: #155847;
-  --felt-deep: #0f3d33;
-  --panel: rgba(10, 22, 19, 0.82);
-  --panel-strong: rgba(14, 32, 28, 0.94);
+  --bg: #090914;
+  --felt: #18324f;
+  --felt-deep: #10192f;
+  --panel: rgba(16, 16, 34, 0.82);
+  --panel-strong: rgba(22, 21, 48, 0.94);
   --line: rgba(247, 240, 220, 0.12);
   --text: #f7f0dc;
   --muted: #d0c7af;
@@ -11,7 +11,9 @@
   --amber: #ef9e4c;
   --teal: #63c0b1;
   --rose: #be6981;
-  --shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+  --violet: #8d78ff;
+  --star: #fbf4cb;
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
   --radius: 22px;
 }
 
@@ -29,9 +31,10 @@ body {
   font-family: "Space Grotesk", sans-serif;
   color: var(--text);
   background:
-    radial-gradient(circle at top left, rgba(240, 200, 110, 0.16), transparent 24rem),
+    radial-gradient(circle at top left, rgba(141, 120, 255, 0.18), transparent 24rem),
     radial-gradient(circle at 85% 10%, rgba(99, 192, 177, 0.12), transparent 20rem),
-    linear-gradient(180deg, #10241f 0%, #09110f 100%);
+    radial-gradient(circle at 45% 0%, rgba(240, 200, 110, 0.08), transparent 18rem),
+    linear-gradient(180deg, #17112d 0%, #090914 100%);
 }
 
 body::before {
@@ -41,10 +44,56 @@ body::before {
   pointer-events: none;
   opacity: 0.14;
   background-image:
-    radial-gradient(circle at center, rgba(255, 255, 255, 0.18) 0 1px, transparent 1.5px),
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.22) 0 1px, transparent 1.5px),
     linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
   background-size: 120px 120px, 30px 30px, 30px 30px;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(141, 120, 255, 0.12), transparent 18rem),
+    radial-gradient(circle at 75% 22%, rgba(99, 192, 177, 0.1), transparent 16rem),
+    radial-gradient(circle at 50% 75%, rgba(240, 200, 110, 0.08), transparent 20rem);
+}
+
+body.no-glow::after {
+  display: none;
+}
+
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+.magic-trail {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 30;
+}
+
+.spark-star {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  margin-top: -6px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(251, 244, 203, 0.95) 0 28%, rgba(141, 120, 255, 0.7) 45%, transparent 70%);
+  box-shadow:
+    0 0 12px rgba(251, 244, 203, 0.7),
+    0 0 24px rgba(141, 120, 255, 0.45);
+  animation: sparkleFade 700ms ease-out forwards;
 }
 
 .app-shell {
@@ -133,7 +182,7 @@ select {
 .nav-tab:hover,
 .nav-tab:focus-visible {
   color: #1a140f;
-  background: linear-gradient(135deg, var(--gold), var(--amber));
+  background: linear-gradient(135deg, var(--violet), var(--gold));
 }
 
 main,
@@ -279,7 +328,7 @@ select {
 
 .button-primary {
   color: #1b140f;
-  background: linear-gradient(135deg, var(--gold), var(--amber));
+  background: linear-gradient(135deg, var(--violet), var(--gold));
 }
 
 .button-secondary {
@@ -310,8 +359,9 @@ select {
   padding: 1rem;
   min-height: 70vh;
   background:
-    radial-gradient(circle at center, rgba(38, 109, 89, 0.42), transparent 46%),
+    radial-gradient(circle at center, rgba(77, 86, 166, 0.42), transparent 46%),
     radial-gradient(circle at 20% 20%, rgba(240, 200, 110, 0.08), transparent 28%),
+    radial-gradient(circle at 80% 15%, rgba(99, 192, 177, 0.08), transparent 18%),
     linear-gradient(180deg, var(--felt) 0%, var(--felt-deep) 100%);
   border-radius: 32px;
 }
@@ -548,7 +598,7 @@ select {
 
 .choice-card.selected,
 .target-button.selected {
-  background: linear-gradient(135deg, var(--gold), var(--amber));
+  background: linear-gradient(135deg, var(--violet), var(--gold));
   color: #1b140f;
   transform: translateY(-8px);
 }
@@ -786,9 +836,52 @@ select {
   padding: 1.5rem;
   text-align: center;
   background:
-    radial-gradient(circle at top, rgba(240, 200, 110, 0.22), transparent 60%),
-    linear-gradient(180deg, rgba(18, 43, 36, 0.98), rgba(9, 24, 20, 0.98));
+    radial-gradient(circle at top, rgba(141, 120, 255, 0.28), transparent 60%),
+    radial-gradient(circle at 50% 0%, rgba(240, 200, 110, 0.16), transparent 55%),
+    linear-gradient(180deg, rgba(20, 19, 48, 0.98), rgba(10, 14, 28, 0.98));
   animation: winPop 420ms ease;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.settings-card {
+  padding: 1.25rem;
+}
+
+.settings-list {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.setting-row strong {
+  display: block;
+}
+
+.setting-row p {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+}
+
+.setting-row input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  accent-color: var(--violet);
 }
 
 @keyframes deckPulse {
@@ -829,12 +922,28 @@ select {
   }
 }
 
+@keyframes sparkleFade {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  25% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
 @media (max-width: 1100px) {
   .launch-card,
   .info-ribbon,
   .action-grid,
   .rules-steps,
-  .rules-grid {
+  .rules-grid,
+  .settings-grid {
     grid-template-columns: 1fr;
   }
 
