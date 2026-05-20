@@ -47,6 +47,17 @@
                 </div>
 
                 <div class="launch-controls">
+                  <article class="rating-card">
+                    <p class="section-kicker">Your Rating</p>
+                    <div class="rating-row">
+                      <strong id="rating-value">1200</strong>
+                      <span id="rating-tier">Rookie Table</span>
+                    </div>
+                    <p class="rating-note" id="rating-note">
+                      Win matches to climb your local ladder.
+                    </p>
+                  </article>
+
                   <label class="field" for="player-count">
                     <span>Total Players</span>
                     <select id="player-count">
@@ -98,6 +109,7 @@
                 <div class="table-badges">
                   <span class="pill" id="phase-pill">In Play</span>
                   <span class="pill subtle" id="difficulty-pill">Difficulty: Medium</span>
+                  <span class="pill subtle" id="table-rating-pill">Rating: 1200</span>
                   <button class="button button-secondary button-compact" id="new-match" type="button">
                     New Match
                   </button>
@@ -192,6 +204,7 @@
                   <p class="section-kicker">Match Complete</p>
                   <h2 id="win-title">Victory</h2>
                   <p id="win-text">You won the match.</p>
+                  <p class="rating-note" id="rating-result">Rating unchanged.</p>
                   <button class="button button-primary" id="play-again" type="button">
                     Play Again
                   </button>
