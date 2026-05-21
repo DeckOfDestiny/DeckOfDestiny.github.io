@@ -31,9 +31,10 @@ body {
   font-family: "Space Grotesk", sans-serif;
   color: var(--text);
   background:
-    radial-gradient(circle at top left, rgba(141, 120, 255, 0.22), transparent 24rem),
-    radial-gradient(circle at 85% 10%, rgba(99, 192, 177, 0.14), transparent 20rem),
-    radial-gradient(circle at 45% 0%, rgba(240, 200, 110, 0.1), transparent 18rem),
+    radial-gradient(circle at 12% 12%, rgba(141, 120, 255, 0.3), transparent 23rem),
+    radial-gradient(circle at 88% 14%, rgba(99, 192, 177, 0.18), transparent 21rem),
+    radial-gradient(circle at 46% 2%, rgba(240, 200, 110, 0.14), transparent 18rem),
+    radial-gradient(circle at 50% 70%, rgba(91, 78, 176, 0.16), transparent 28rem),
     linear-gradient(180deg, #1a1434 0%, #090914 100%);
 }
 
@@ -42,13 +43,14 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.14;
+  opacity: 0.22;
   background-image:
     radial-gradient(circle at center, rgba(255, 255, 255, 0.22) 0 1px, transparent 1.5px),
     radial-gradient(circle at 20% 25%, rgba(240, 200, 110, 0.16) 0 1px, transparent 1.7px),
+    radial-gradient(circle at 70% 40%, rgba(141, 120, 255, 0.14) 0 1.2px, transparent 1.9px),
     linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: 120px 120px, 180px 180px, 30px 30px, 30px 30px;
+  background-size: 120px 120px, 180px 180px, 220px 220px, 30px 30px, 30px 30px;
 }
 
 body::after {
@@ -56,12 +58,12 @@ body::after {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.58;
+  opacity: 0.72;
   background:
-    radial-gradient(circle at 20% 15%, rgba(141, 120, 255, 0.18), transparent 18rem),
-    radial-gradient(circle at 75% 22%, rgba(99, 192, 177, 0.15), transparent 16rem),
-    radial-gradient(circle at 50% 75%, rgba(240, 200, 110, 0.12), transparent 20rem),
-    radial-gradient(circle at 55% 45%, rgba(141, 120, 255, 0.08), transparent 14rem);
+    radial-gradient(circle at 20% 15%, rgba(141, 120, 255, 0.24), transparent 18rem),
+    radial-gradient(circle at 75% 22%, rgba(99, 192, 177, 0.18), transparent 16rem),
+    radial-gradient(circle at 50% 75%, rgba(240, 200, 110, 0.15), transparent 20rem),
+    radial-gradient(circle at 55% 45%, rgba(141, 120, 255, 0.12), transparent 14rem);
 }
 
 body.no-glow::after {
@@ -379,12 +381,14 @@ select {
   padding: 1rem;
   min-height: 70vh;
   background:
-    radial-gradient(circle at center, rgba(108, 92, 193, 0.42), transparent 46%),
-    radial-gradient(circle at 20% 20%, rgba(240, 200, 110, 0.12), transparent 28%),
-    radial-gradient(circle at 80% 15%, rgba(99, 192, 177, 0.12), transparent 18%),
-    radial-gradient(circle at 50% 50%, rgba(141, 120, 255, 0.08), transparent 12rem),
+    radial-gradient(circle at center, rgba(108, 92, 193, 0.5), transparent 48%),
+    radial-gradient(circle at 20% 20%, rgba(240, 200, 110, 0.18), transparent 28%),
+    radial-gradient(circle at 80% 15%, rgba(99, 192, 177, 0.16), transparent 18%),
+    radial-gradient(circle at 50% 50%, rgba(141, 120, 255, 0.12), transparent 12rem),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.03) 0 2px, transparent 2.5px),
     linear-gradient(180deg, var(--felt) 0%, var(--felt-deep) 100%);
   border-radius: 32px;
+  background-size: auto, auto, auto, auto, 140px 140px, auto;
 }
 
 .table-stage::before {
@@ -402,11 +406,11 @@ select {
   inset: 12% 16%;
   border-radius: 50%;
   pointer-events: none;
-  opacity: 0.75;
+  opacity: 0.92;
   box-shadow:
-    0 0 0 1px rgba(240, 200, 110, 0.06),
-    0 0 0 18px rgba(141, 120, 255, 0.03),
-    0 0 80px rgba(141, 120, 255, 0.12);
+    0 0 0 1px rgba(240, 200, 110, 0.08),
+    0 0 0 18px rgba(141, 120, 255, 0.05),
+    0 0 110px rgba(141, 120, 255, 0.18);
 }
 
 .deck-stack {
@@ -791,6 +795,7 @@ select {
   border-radius: 16px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.04);
+  scroll-margin-top: 2rem;
 }
 
 .review-summary.waiting-review {

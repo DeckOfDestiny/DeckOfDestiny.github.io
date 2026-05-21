@@ -50,6 +50,8 @@ const state = {
   comboDatabase: new Map(),
   reviewEntries: [],
   pendingReview: null,
+  roundHistory: [],
+  ratingCommitted: false,
 };
 
 let cardId = 0;
@@ -73,6 +75,7 @@ const difficultySelect = document.querySelector("#ai-difficulty");
 const startButton = document.querySelector("#start-game");
 const newMatchButton = document.querySelector("#new-match");
 const playAgainButton = document.querySelector("#play-again");
+const viewReviewButton = document.querySelector("#view-review");
 const roundLabel = document.querySelector("#round-label");
 const phasePill = document.querySelector("#phase-pill");
 const difficultyPill = document.querySelector("#difficulty-pill");
@@ -157,6 +160,14 @@ function safeWriteSettings() {
   } catch (_error) {
     return;
   }
+}
+
+function totalNumberCopies(value) {
+  return numberDistribution.find((entry) => entry.value === value)?.copies || 0;
+}
+
+function totalActionCopies(type) {
+  return actionDistribution[type] || 0;
 }
 
 function nextCardId() {
@@ -314,6 +325,34 @@ function getComboRecord(numberValue, actionType) {
   };
   state.comboDatabase.set(key, record);
   return record;
+}
+
+function buildSeenSnapshot() {
+  const numbersSeen = new Map();
+  const actionsSeen = new Map();
+  let totalNumbersSeen = 0;
+  let totalActionsSeen = 0;
+
+  state.roundHistory.forEach((round) => {
+    round.entries.forEach((entry) => {
+      if (entry.numberCard) {
+        numbersSeen.set(entry.numberCard.value, (numbersSeen.get(entry.numberCard.value) || 0) + 1);
+        totalNumbersSeen += 1;
+      }
+      if (entry.actionCard) {
+        actionsSeen.set(entry.actionCard.type, (actionsSeen.get(entry.actionCard.type) || 0) + 1);
+        totalActionsSeen += 1;
+      }
+    });
+  });
+
+  return {
+    roundsObserved: state.roundHistory.length,
+    numbersSeen,
+    actionsSeen,
+    totalNumbersSeen,
+    totalActionsSeen,
+  };
 }
 
 function ensureComboDatabase() {
@@ -532,16 +571,66 @@ function scorePlayCandidate(play, context) {
   const actionType = play.actionCard ? play.actionCard.type : null;
   const record = getComboRecord(numberValue, actionType);
   const target = findTargetForReview(play, context.players);
+  const reasons = [];
 
   let score = record.baseScore;
   const roundPressure = context.round / context.totalRounds;
   const ahead = currentLeader && human.points >= currentLeader.points;
+  const ownNumberCounts = new Map();
+  human.numbers.forEach((card) => {
+    ownNumberCounts.set(card.value, (ownNumberCounts.get(card.value) || 0) + 1);
+  });
+  const ownActionCounts = new Map();
+  human.actions.forEach((card) => {
+    ownActionCounts.set(card.type, (ownActionCounts.get(card.type) || 0) + 1);
+  });
+  const unseenHighNumbers = [10, 11, 12].reduce((sum, value) => (
+    sum
+    + Math.max(
+      0,
+      totalNumberCopies(value)
+      - (context.seen.numbersSeen.get(value) || 0)
+      - (ownNumberCounts.get(value) || 0)
+      - (numberValue === value ? 1 : 0)
+    )
+  ), 0);
+  const unseenAggroActions = ["drain", "swap", "double"].reduce((sum, type) => (
+    sum
+    + Math.max(
+      0,
+      totalActionCopies(type)
+      - (context.seen.actionsSeen.get(type) || 0)
+      - (ownActionCounts.get(type) || 0)
+      - (actionType === type ? 1 : 0)
+    )
+  ), 0);
+  const unseenShields = Math.max(
+    0,
+    totalActionCopies("shield")
+    - (context.seen.actionsSeen.get("shield") || 0)
+    - (ownActionCounts.get("shield") || 0)
+    - (actionType === "shield" ? 1 : 0)
+  );
+  const topCardsAlreadyGone = (context.seen.numbersSeen.get(11) || 0) + (context.seen.numbersSeen.get(12) || 0);
+  const lowCardsSeen = [1, 2, 3, 4].reduce((sum, value) => sum + (context.seen.numbersSeen.get(value) || 0), 0);
 
   if (numberValue !== null) {
     if (ahead && roundPressure < 0.45 && numberValue >= 10) score -= 1.25;
     if (!ahead && roundPressure > 0.55 && numberValue >= 9) score += 1.1;
     if (ahead && numberValue >= 11) score -= 0.65;
     if (roundPressure < 0.25 && numberValue <= 5) score += 0.3;
+    if (unseenHighNumbers <= 4 && numberValue >= 8) {
+      score += 0.75;
+      reasons.push("most of the top-end numbers are already gone");
+    }
+    if (unseenHighNumbers >= 10 && numberValue >= 10 && roundPressure < 0.6) {
+      score -= 0.65;
+      reasons.push("too many big numbers are still hidden, so spending a premium card now is risky");
+    }
+    if (lowCardsSeen >= 10 && numberValue >= 6 && numberValue <= 8) {
+      score += 0.35;
+      reasons.push("mid cards gain value once lots of low cards have already appeared");
+    }
   }
 
   if (!actionType && numberValue !== null && numberValue >= 9 && roundPressure < 0.3) {
@@ -551,17 +640,32 @@ function scorePlayCandidate(play, context) {
   if (actionType === "boost") {
     if (numberValue === null) score -= 1.1;
     if (numberValue !== null && numberValue >= 7 && numberValue <= 9) score += 0.9;
+    if (unseenHighNumbers <= 3 && numberValue !== null && numberValue >= 6) {
+      score += 0.4;
+      reasons.push("a modest boost is stronger when the field is running out of huge numbers");
+    }
   }
 
   if (actionType === "double") {
     if (numberValue === null) score -= 1.6;
     if (numberValue !== null && numberValue >= 6 && numberValue <= 9) score += 1.25;
     if (numberValue !== null && numberValue <= 3) score -= 0.5;
+    if (unseenShields >= 2 && target) {
+      score -= 0.2;
+    }
   }
 
   if (actionType === "shield") {
     if (numberValue !== null && numberValue >= 8) score += 1;
     if (ahead) score += 0.4;
+    if (unseenAggroActions >= 5) {
+      score += 0.65;
+      reasons.push("several attack cards are still unaccounted for, so protection matters more");
+    }
+    if (unseenAggroActions <= 2) {
+      score -= 0.55;
+      reasons.push("most of the attack cards have already been spent");
+    }
   }
 
   if (actionType === "drain") {
@@ -569,6 +673,15 @@ function scorePlayCandidate(play, context) {
     if (target) {
       score += Math.min(1.4, target.points * 0.3);
       score += target.numbers.length <= 6 ? 0.4 : 0;
+      const targetLikelyLoaded = target.numbers.length > 0 && unseenHighNumbers >= 6;
+      if (targetLikelyLoaded) {
+        score += 0.35;
+        reasons.push(`there are still strong hidden numbers, so pressuring ${target.name} makes sense`);
+      }
+    }
+    if (unseenShields >= 3) {
+      score -= 0.4;
+      reasons.push("too many shields may still be out there");
     }
   }
 
@@ -576,6 +689,13 @@ function scorePlayCandidate(play, context) {
     if (numberValue === null) score -= 0.8;
     if (numberValue !== null && numberValue <= 5) score += 1.1;
     if (target) score += Math.min(1.2, target.points * 0.25);
+    if (unseenHighNumbers >= 8) {
+      score += 0.45;
+      reasons.push("swap gets better when a lot of big cards could still be in enemy hands");
+    }
+    if (unseenShields >= 2) {
+      score -= 0.3;
+    }
   }
 
   if (actionType === "steal") {
@@ -583,10 +703,18 @@ function scorePlayCandidate(play, context) {
     if (richLeader) score += 1;
     if (ahead) score -= 1.1;
     if (numberValue !== null && numberValue >= 9) score -= 0.5;
+    if (unseenHighNumbers >= 8) {
+      score += 0.55;
+      reasons.push("a steal line improves when opponents are still likely to spike high rounds");
+    }
   }
 
   if (target) {
     if (target.id === currentLeader?.id) score += 0.55;
+  }
+
+  if (context.seen.roundsObserved >= 4 && topCardsAlreadyGone >= 6 && numberValue !== null && numberValue >= 7) {
+    score += 0.25;
   }
 
   score += Math.min(0.6, roundPressure * 0.9);
@@ -595,6 +723,7 @@ function scorePlayCandidate(play, context) {
     score,
     label: record.label,
     key: record.key,
+    reasons,
   };
 }
 
@@ -645,12 +774,14 @@ function classifyReviewLoss(loss) {
 function analyzeHumanDecision(actualPlay) {
   const human = getHumanPlayer();
   if (!human) return null;
+  const seen = buildSeenSnapshot();
 
   const context = {
     human,
     players: state.players,
     round: state.currentRound + 1,
     totalRounds: state.totalRounds,
+    seen,
   };
 
   const candidates = enumerateLegalHumanPlays()
@@ -687,10 +818,13 @@ function analyzeHumanDecision(actualPlay) {
     classification,
     actualLabel: actual.label,
     actualScore: actual.score,
+    actualReasons: actual.reasons || [],
     bestLabel: best.label,
     bestScore: best.score,
+    bestReasons: best.reasons || [],
     bestTargetLabel: bestTarget ? ` on ${bestTarget.name}` : "",
     loss,
+    seenSummary: `Seen so far: ${seen.totalNumbersSeen} number cards and ${seen.totalActionsSeen} action cards.`,
   };
 }
 
@@ -974,6 +1108,51 @@ function updateRating(resultScore) {
   safeWriteRating(next);
   const sign = state.lastRatingDelta > 0 ? "+" : "";
   ratingResult.textContent = `Rating ${sign}${state.lastRatingDelta} to ${state.rating}`;
+  state.ratingCommitted = true;
+}
+
+function applyAbortPenaltyIfNeeded() {
+  const matchStarted = state.currentRound > 0 || state.phase === "revealing" || state.phase === "finished";
+  if (!matchStarted || state.ratingCommitted) return false;
+
+  const previous = state.rating;
+  const opponent = botPoolRating();
+  const expected = expectedScore(previous, opponent);
+  const abortPenalty = 6;
+  const next = Math.max(100, Math.round(previous + 28 * (0 - expected) - abortPenalty));
+  state.lastRatingDelta = next - previous;
+  state.rating = next;
+  state.ratingCommitted = true;
+  safeWriteRating(next);
+  const sign = state.lastRatingDelta > 0 ? "+" : "";
+  ratingResult.textContent = `Abort penalty ${sign}${state.lastRatingDelta} to ${state.rating}`;
+  return true;
+}
+
+function clearLiveMatchState() {
+  state.phase = "waiting";
+  state.currentRound = 0;
+  state.players = [];
+  state.logs = [];
+  state.winnerText = "";
+  state.selectedNumberId = null;
+  state.selectedActionId = null;
+  state.selectedTargetId = null;
+  state.revealEntries = [];
+  state.revealMode = "idle";
+  state.reviewEntries = [];
+  state.pendingReview = null;
+  state.roundHistory = [];
+  state.ratingCommitted = false;
+  deckStack.classList.remove("dealing");
+  winOverlay.hidden = true;
+}
+
+function openPostGameReview() {
+  winOverlay.hidden = true;
+  setActiveTab("play");
+  setPlayScreen("table");
+  reviewSummary.scrollIntoView({ behavior: settingsState.reducedMotion ? "auto" : "smooth", block: "center" });
 }
 
 function startGame() {
@@ -993,6 +1172,8 @@ function startGame() {
   state.lastRatingDelta = 0;
   state.reviewEntries = [];
   state.pendingReview = null;
+  state.roundHistory = [];
+  state.ratingCommitted = false;
   deckStack.classList.add("dealing");
   winOverlay.hidden = true;
   ratingResult.textContent = "Rating pending...";
@@ -1013,20 +1194,9 @@ function startGame() {
 function resetToLobby() {
   clearTimers();
   playUiSound("click");
-  state.phase = "waiting";
-  state.players = [];
-  state.logs = [];
-  state.winnerText = "";
-  state.selectedNumberId = null;
-  state.selectedActionId = null;
-  state.selectedTargetId = null;
-  state.revealEntries = [];
-  state.revealMode = "idle";
-  state.lastRatingDelta = 0;
-  state.reviewEntries = [];
-  state.pendingReview = null;
-  deckStack.classList.remove("dealing");
-  winOverlay.hidden = true;
+  const aborted = applyAbortPenaltyIfNeeded();
+  clearLiveMatchState();
+  if (!aborted) state.lastRatingDelta = 0;
   setPlayScreen("lobby");
   render();
 }
@@ -1037,6 +1207,17 @@ function finishReveal(summary) {
   playUiSound("reveal");
   state.logs.unshift(createLogMessage(summary));
   state.logs = state.logs.slice(0, 8);
+  state.roundHistory.push({
+    round: state.currentRound,
+    entries: summary.entries.map((entry) => ({
+      playerId: entry.playerId,
+      playerName: entry.playerName,
+      numberCard: entry.numberCard ? { value: entry.numberCard.value } : null,
+      actionCard: entry.actionCard ? { type: entry.actionCard.type, label: entry.actionCard.label } : null,
+      targetId: entry.targetId || null,
+      finalValue: entry.finalValue,
+    })),
+  });
   state.selectedNumberId = null;
   state.selectedActionId = null;
   state.selectedTargetId = null;
@@ -1056,7 +1237,7 @@ function finishReveal(summary) {
       state.revealMode = "idle";
       render();
       tableClearTimer = null;
-    }, settingsState.reducedMotion ? 500 : 1350);
+    }, settingsState.reducedMotion ? 1000 : 2200);
   }
 
   render();
@@ -1101,7 +1282,7 @@ function playRound() {
       ...state.pendingReview,
       outcome: summary.uniqueWinnerName === "You" ? "You won the round." : summary.uniqueWinnerName ? `${summary.uniqueWinnerName} won the round.` : "The round ended tied for first.",
     });
-    state.reviewEntries = state.reviewEntries.slice(0, 8);
+    state.reviewEntries = state.reviewEntries.slice(0, state.totalRounds);
     state.pendingReview = null;
   }
   revealTimer = window.setTimeout(() => finishReveal(summary), 950);
@@ -1328,12 +1509,12 @@ function renderReview() {
       <strong>Post-game review locked</strong>
       <p>The review opens after the match, like a proper analysis screen. Finish the game to see your best moves, misses, and blunders.</p>
     `;
-    reviewSummary.className = "waiting-review";
+    reviewSummary.className = "review-summary waiting-review";
     reviewList.innerHTML = "";
     return;
   }
 
-  reviewSummary.className = "";
+  reviewSummary.className = "review-summary";
 
   if (!state.reviewEntries.length) {
     reviewSummary.innerHTML = `
@@ -1348,6 +1529,7 @@ function renderReview() {
   reviewSummary.innerHTML = `
     <strong>Round ${latest.round}: ${latest.classification.label}</strong>
     <p>You played <strong>${latest.actualLabel}</strong>. The top recommendation was <strong>${latest.bestLabel}${latest.bestTargetLabel}</strong>.</p>
+    <p>${latest.seenSummary}</p>
   `;
 
   reviewList.innerHTML = state.reviewEntries
@@ -1359,6 +1541,8 @@ function renderReview() {
         </div>
         <p>Played: <strong>${entry.actualLabel}</strong></p>
         <p>Best line: <strong>${entry.bestLabel}${entry.bestTargetLabel}</strong></p>
+        <p>Why best: ${entry.bestReasons.length ? entry.bestReasons[0] : "It preserved more value for the overall match state."}</p>
+        <p>Seen cards: ${entry.seenSummary}</p>
         <p>Score loss: ${entry.loss.toFixed(2)} • ${entry.outcome}</p>
       </article>
     `)
@@ -1384,11 +1568,11 @@ function renderHands() {
 function renderRating() {
   ratingValue.textContent = String(state.rating);
   ratingTier.textContent = ratingTierLabel(state.rating);
-  if (state.phase === "waiting") {
-    ratingNote.textContent = "Win matches to climb your local ladder.";
-  } else if (state.lastRatingDelta !== 0) {
+  if (state.lastRatingDelta !== 0) {
     const sign = state.lastRatingDelta > 0 ? "+" : "";
     ratingNote.textContent = `Last result: ${sign}${state.lastRatingDelta} rating.`;
+  } else if (state.phase === "waiting") {
+    ratingNote.textContent = "Win matches to climb your local ladder.";
   } else {
     ratingNote.textContent = "Current match will update your rating when it ends.";
   }
@@ -1419,6 +1603,12 @@ tabButtons.forEach((button) => {
 startButton.addEventListener("click", startGame);
 newMatchButton.addEventListener("click", resetToLobby);
 playAgainButton.addEventListener("click", resetToLobby);
+if (viewReviewButton) {
+  viewReviewButton.addEventListener("click", () => {
+    playUiSound("click");
+    openPostGameReview();
+  });
+}
 playRoundButton.addEventListener("click", playRound);
 
 clearNumberButton.addEventListener("click", () => {
@@ -1500,4 +1690,8 @@ window.addEventListener("pointermove", (event) => {
   sparkleTick += 1;
   if (sparkleTick % 2 !== 0) return;
   spawnSparkle(event.clientX, event.clientY);
+});
+
+window.addEventListener("pagehide", () => {
+  applyAbortPenaltyIfNeeded();
 });
