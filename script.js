@@ -81,7 +81,6 @@ const viewReviewButton = document.querySelector("#view-review");
 const roundLabel = document.querySelector("#round-label");
 const phasePill = document.querySelector("#phase-pill");
 const difficultyPill = document.querySelector("#difficulty-pill");
-const tableRatingPill = document.querySelector("#table-rating-pill");
 const statusMessage = document.querySelector("#status-message");
 const selectionTitle = document.querySelector("#selection-title");
 const selectionText = document.querySelector("#selection-text");
@@ -102,10 +101,6 @@ const clearActionButton = document.querySelector("#clear-action");
 const winOverlay = document.querySelector("#win-overlay");
 const winTitle = document.querySelector("#win-title");
 const winText = document.querySelector("#win-text");
-const ratingValue = document.querySelector("#rating-value");
-const ratingTier = document.querySelector("#rating-tier");
-const ratingNote = document.querySelector("#rating-note");
-const ratingResult = document.querySelector("#rating-result");
 const reviewSummary = document.querySelector("#review-summary");
 const reviewList = document.querySelector("#review-list");
 const starTrailSetting = document.querySelector("#setting-star-trail");
@@ -1175,7 +1170,6 @@ function updateRating(resultScore) {
   if (!state.ratingActive) {
     state.lastRatingDelta = 0;
     state.ratingCommitted = true;
-    ratingResult.textContent = "Rating mode is inactive.";
     return;
   }
   const previous = state.rating;
@@ -1186,8 +1180,6 @@ function updateRating(resultScore) {
   state.lastRatingDelta = next - previous;
   state.rating = next;
   safeWriteRating(next);
-  const sign = state.lastRatingDelta > 0 ? "+" : "";
-  ratingResult.textContent = `Rating ${sign}${state.lastRatingDelta} to ${state.rating}`;
   state.ratingCommitted = true;
 }
 
@@ -1205,8 +1197,6 @@ function applyAbortPenaltyIfNeeded() {
   state.rating = next;
   state.ratingCommitted = true;
   safeWriteRating(next);
-  const sign = state.lastRatingDelta > 0 ? "+" : "";
-  ratingResult.textContent = `Abort penalty ${sign}${state.lastRatingDelta} to ${state.rating}`;
   return true;
 }
 
@@ -1265,7 +1255,6 @@ function startGame() {
   state.handIntro = false;
   deckStack.classList.add("dealing");
   winOverlay.hidden = true;
-  ratingResult.textContent = state.ratingActive ? "Rating pending..." : "Rating mode is inactive.";
   setPlayScreen("table");
   setActiveTab("play");
   statusMessage.textContent = "Dealing cards to the table...";
@@ -1381,7 +1370,6 @@ function playRound() {
 
 function renderStatus() {
   difficultyPill.textContent = `Difficulty: ${difficultyLabel(displayedDifficulty())}`;
-  tableRatingPill.textContent = state.ratingActive ? `Rating: ${state.rating}` : "Rating: Inactive";
   if (state.phase === "waiting") {
     roundLabel.textContent = "No game running";
     phasePill.textContent = "Waiting";
@@ -1643,18 +1631,7 @@ function renderHands() {
 }
 
 function renderRating() {
-  ratingValue.textContent = state.ratingActive ? String(state.rating) : "Dormant";
-  ratingTier.textContent = state.ratingActive ? ratingTierLabel(state.rating) : "Inactive";
-  if (state.lastRatingDelta !== 0) {
-    const sign = state.lastRatingDelta > 0 ? "+" : "";
-    ratingNote.textContent = `Last result: ${sign}${state.lastRatingDelta} rating.`;
-  } else if (!state.ratingActive) {
-    ratingNote.textContent = "Rating mode is currently inactive. Tell me when you want it turned on.";
-  } else if (state.phase === "waiting") {
-    ratingNote.textContent = "Win matches to climb your local ladder.";
-  } else {
-    ratingNote.textContent = "Current match will update your rating when it ends.";
-  }
+  return;
 }
 
 function render() {
