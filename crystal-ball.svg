@@ -1,0 +1,26 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="orb" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(128 102) rotate(90) scale(86)">
+      <stop offset="0" stop-color="#FFF7D6"/>
+      <stop offset="0.22" stop-color="#E6D8FF"/>
+      <stop offset="0.55" stop-color="#8E78FF"/>
+      <stop offset="0.85" stop-color="#1E355B"/>
+      <stop offset="1" stop-color="#0D1530"/>
+    </radialGradient>
+    <linearGradient id="stand" x1="128" y1="176" x2="128" y2="236" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F3CA74"/>
+      <stop offset="1" stop-color="#A76A2E"/>
+    </linearGradient>
+  </defs>
+  <circle cx="128" cy="104" r="86" fill="url(#orb)"/>
+  <circle cx="128" cy="104" r="84" stroke="#FBEFC6" stroke-opacity="0.65" stroke-width="3"/>
+  <path d="M77 89C94 64 116 52 147 54C134 67 121 80 109 108C100 129 92 144 71 153C69 127 69 107 77 89Z" fill="#FFF" fill-opacity="0.24"/>
+  <path d="M91 174H165L178 192H78L91 174Z" fill="url(#stand)"/>
+  <path d="M100 192H156L172 226H84L100 192Z" fill="url(#stand)"/>
+  <rect x="70" y="226" width="116" height="16" rx="8" fill="#8F5A28"/>
+  <g opacity="0.72" fill="#FFF6D8">
+    <path d="M188 49L191 58L200 61L191 64L188 73L185 64L176 61L185 58L188 49Z"/>
+    <path d="M66 62L68 68L74 70L68 72L66 78L64 72L58 70L64 68L66 62Z"/>
+    <path d="M173 130L175 136L181 138L175 140L173 146L171 140L165 138L171 136L173 130Z"/>
+  </g>
+</svg>

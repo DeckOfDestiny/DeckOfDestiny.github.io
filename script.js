@@ -52,6 +52,8 @@ const state = {
   pendingReview: null,
   roundHistory: [],
   ratingCommitted: false,
+  ratingActive: false,
+  handIntro: false,
 };
 
 let cardId = 0;
@@ -233,22 +235,22 @@ function playToneSequence(sequence) {
 function playUiSound(kind) {
   if (!settingsState.sound) return;
   if (kind === "click") {
-    playToneSequence([{ frequency: 520, at: 0, duration: 0.07, volume: 0.03, type: "triangle" }]);
+    playToneSequence([{ frequency: 612, at: 0, duration: 0.08, volume: 0.018, type: "sine" }]);
   } else if (kind === "deal") {
     playToneSequence([
-      { frequency: 320, at: 0, duration: 0.08, volume: 0.025, type: "triangle" },
-      { frequency: 420, at: 0.06, duration: 0.08, volume: 0.02, type: "triangle" },
+      { frequency: 294, at: 0, duration: 0.09, volume: 0.018, type: "triangle" },
+      { frequency: 392, at: 0.08, duration: 0.09, volume: 0.016, type: "triangle" },
     ]);
   } else if (kind === "reveal") {
     playToneSequence([
-      { frequency: 440, at: 0, duration: 0.09, volume: 0.03, type: "sine" },
-      { frequency: 660, at: 0.09, duration: 0.11, volume: 0.025, type: "sine" },
+      { frequency: 432, at: 0, duration: 0.11, volume: 0.02, type: "sine" },
+      { frequency: 648, at: 0.1, duration: 0.13, volume: 0.018, type: "triangle" },
     ]);
   } else if (kind === "win") {
     playToneSequence([
-      { frequency: 523.25, at: 0, duration: 0.12, volume: 0.04, type: "triangle" },
-      { frequency: 659.25, at: 0.12, duration: 0.12, volume: 0.04, type: "triangle" },
-      { frequency: 783.99, at: 0.24, duration: 0.18, volume: 0.04, type: "triangle" },
+      { frequency: 523.25, at: 0, duration: 0.12, volume: 0.03, type: "triangle" },
+      { frequency: 698.46, at: 0.12, duration: 0.13, volume: 0.03, type: "triangle" },
+      { frequency: 880, at: 0.26, duration: 0.21, volume: 0.03, type: "sine" },
     ]);
   }
 }
@@ -259,6 +261,12 @@ function spawnSparkle(x, y) {
   star.className = "spark-star";
   star.style.left = `${x}px`;
   star.style.top = `${y}px`;
+  star.style.setProperty("--spark-dx", `${Math.round(randomBetween(-14, 14))}px`);
+  star.style.setProperty("--spark-dy", `${Math.round(randomBetween(-18, -4))}px`);
+  star.style.setProperty("--spark-rot", `${Math.round(randomBetween(-40, 40))}deg`);
+  const core = document.createElement("i");
+  core.setAttribute("aria-hidden", "true");
+  star.appendChild(core);
   magicTrail.appendChild(star);
   window.setTimeout(() => {
     star.remove();
@@ -387,8 +395,30 @@ function createActionDeck() {
   return shuffle(deck);
 }
 
+function dealBalancedNumberHands(playerCount) {
+  const deck = createNumberDeck().sort((a, b) => b.value - a.value);
+  const hands = Array.from({ length: playerCount }, () => []);
+  let forward = true;
+
+  for (let start = 0; start < deck.length; start += playerCount) {
+    const chunk = shuffle(deck.slice(start, start + playerCount));
+    const order = forward
+      ? Array.from({ length: playerCount }, (_, index) => index)
+      : Array.from({ length: playerCount }, (_, index) => playerCount - 1 - index);
+
+    chunk.forEach((card, index) => {
+      const seat = order[index % order.length];
+      hands[seat].push(card);
+    });
+
+    forward = !forward;
+  }
+
+  return hands.map((hand) => hand.slice(0, 15).sort((a, b) => a.value - b.value));
+}
+
 function dealCards(playerCount) {
-  const numberDeck = createNumberDeck();
+  const numberHands = dealBalancedNumberHands(playerCount);
   const actionDeck = createActionDeck();
   const players = [];
 
@@ -401,7 +431,7 @@ function dealCards(playerCount) {
       aiDifficulty: isHuman ? null : state.difficulty,
       botProfile: isHuman ? null : createBotProfile(state.difficulty),
       points: 0,
-      numbers: numberDeck.splice(0, 15).sort((a, b) => a.value - b.value),
+      numbers: numberHands[index],
       actions: actionDeck.splice(0, 5),
       lastPlayed: null,
     });
@@ -556,6 +586,112 @@ function botTargetFor(player, actionType, otherPlayers) {
   const sorted = [...otherPlayers].sort((a, b) => b.points - a.points);
   if (actionType === "drain" || actionType === "swap") return sorted[0].id;
   return otherPlayers[0].id;
+}
+
+function buildHandState(player) {
+  return {
+    numbers: player.numbers.map((card) => ({ id: card.id, value: card.value })),
+    actions: player.actions.map((card) => ({ id: card.id, type: card.type, label: card.label })),
+  };
+}
+
+function enumerateBotPlays(player) {
+  const opponents = state.players.filter((candidate) => candidate.id !== player.id);
+  const plays = [];
+
+  player.numbers.forEach((numberCard) => {
+    plays.push({ numberCard, actionCard: null, targetId: null });
+  });
+
+  player.actions.forEach((actionCard) => {
+    if (actionNeedsTarget(actionCard)) {
+      opponents.forEach((target) => {
+        plays.push({ numberCard: null, actionCard, targetId: target.id });
+      });
+    } else {
+      plays.push({ numberCard: null, actionCard, targetId: null });
+    }
+  });
+
+  player.numbers.forEach((numberCard) => {
+    player.actions.forEach((actionCard) => {
+      if (actionNeedsTarget(actionCard)) {
+        opponents.forEach((target) => {
+          plays.push({ numberCard, actionCard, targetId: target.id });
+        });
+      } else {
+        plays.push({ numberCard, actionCard, targetId: null });
+      }
+    });
+  });
+
+  return plays;
+}
+
+function scoreBotCandidate(player, play, difficulty, seen) {
+  const ranking = [...state.players].sort((a, b) => b.points - a.points);
+  const currentLeader = ranking[0];
+  const roundPressure = (state.currentRound + 1) / state.totalRounds;
+  const target = play.targetId ? state.players.find((entry) => entry.id === play.targetId) : null;
+  const numberValue = play.numberCard ? play.numberCard.value : 0;
+  const actionType = play.actionCard ? play.actionCard.type : null;
+  const behind = player.points < currentLeader.points;
+  const protectingLead = player.id === currentLeader.id && !behind;
+  const unseenTwelves = Math.max(0, totalNumberCopies(12) - (seen.numbersSeen.get(12) || 0));
+  const unseenElevens = Math.max(0, totalNumberCopies(11) - (seen.numbersSeen.get(11) || 0));
+
+  let score = numberValue;
+  score += numberValue >= 9 ? (behind ? 1.25 : 0.1) : 0;
+  score += numberValue <= 4 ? (difficulty === "easy" ? 0.3 : -0.25) : 0;
+
+  if (protectingLead && roundPressure < 0.55 && numberValue >= 10) score -= difficulty === "hard" ? 1.15 : 0.7;
+  if (difficulty === "hard" && roundPressure < 0.35 && numberValue >= 11 && unseenTwelves + unseenElevens > 5) score -= 1.1;
+  if (difficulty === "hard" && roundPressure > 0.7 && numberValue >= 8) score += 0.9;
+  if (difficulty === "medium" && roundPressure > 0.72 && numberValue >= 9) score += 0.55;
+
+  if (actionType === "shield") {
+    score += numberValue >= 8 ? 1.25 : 0.4;
+    score += protectingLead ? 0.55 : 0;
+  }
+
+  if (actionType === "boost") {
+    score += numberValue >= 6 && numberValue <= 9 ? 1.35 : 0.35;
+    if (!play.numberCard) score -= 0.9;
+  }
+
+  if (actionType === "double") {
+    score += numberValue >= 6 && numberValue <= 9 ? 1.7 : 0.15;
+    if (!play.numberCard || numberValue <= 3) score -= 1.1;
+  }
+
+  if (actionType === "swap") {
+    score += numberValue <= 5 ? 1.5 : -0.15;
+    if (target) score += target.points * 0.24;
+  }
+
+  if (actionType === "drain") {
+    if (target) {
+      score += target.points * 0.26;
+      score += target.id === currentLeader.id ? 0.55 : 0;
+    } else {
+      score -= 0.9;
+    }
+  }
+
+  if (actionType === "steal") {
+    score += behind ? 1.1 : -0.8;
+    score += numberValue >= 8 ? -0.45 : 0.3;
+  }
+
+  if (difficulty === "easy") {
+    score += Math.random() * 0.65;
+  } else if (difficulty === "medium") {
+    score += Math.random() * 0.28;
+  } else {
+    score += Math.random() * 0.08;
+  }
+
+  return score;
 }
 
 function findTargetForReview(play, players) {
@@ -829,88 +965,26 @@ function analyzeHumanDecision(actualPlay) {
 }
 
 function chooseBotPlay(player) {
-  const selected = { numberCard: null, actionCard: null, targetId: null };
-  const otherPlayers = state.players.filter((candidate) => candidate.id !== player.id);
   const difficulty = player.aiDifficulty || state.difficulty;
-  const { sorted, low, mid, high } = getNumberBands(player.numbers);
-  const profile = player.botProfile || createBotProfile(difficulty);
-  const leadingScore = Math.max(...state.players.map((entry) => entry.points));
-  const behind = player.points < leadingScore;
+  const seen = buildSeenSnapshot();
+  const candidateScores = enumerateBotPlays(player)
+    .map((play) => ({ play, score: scoreBotCandidate(player, play, difficulty, seen) }))
+    .sort((a, b) => b.score - a.score);
 
-  if (difficulty === "easy") {
-    selected.numberCard = weightedPick(sorted, (card) => {
-      const highPenalty = card.value >= 9 ? 0.45 - profile.highBias * 0.2 : 1;
-      const bluffBoost = card.value <= 4 ? 1 + profile.bluffBias * 0.45 : 1;
-      return highPenalty * bluffBoost;
-    });
-  } else if (difficulty === "medium") {
-    selected.numberCard = weightedPick(sorted, (card) => {
-      let score = 1;
-      if (card.value >= 8) score += profile.highBias * 0.85;
-      if (card.value >= 10 && !behind) score -= 0.35;
-      if (card.value <= 4) score += profile.bluffBias * 0.35;
-      if (behind && card.value >= 9) score += 0.45;
-      if (!behind && card.value >= 11) score -= 0.2;
-      return score;
-    });
-  } else {
-    selected.numberCard = weightedPick(sorted, (card) => {
-      let score = 1;
-      if (behind) {
-        if (card.value >= 9) score += 0.9 + profile.highBias * 0.45;
-        if (card.value <= 4) score -= 0.18;
-      } else if (state.currentRound < 5) {
-        if (mid.some((entry) => entry.id === card.id)) score += 0.7;
-        if (high.some((entry) => entry.id === card.id)) score -= 0.28;
-      } else {
-        if (card.value >= 8) score += 0.55;
-      }
-      score += Math.random() * 0.18;
-      return score;
-    });
+  if (!candidateScores.length) return { numberCard: null, actionCard: null, targetId: null };
+
+  const shortlistSize = difficulty === "easy" ? Math.min(6, candidateScores.length) : difficulty === "medium" ? Math.min(4, candidateScores.length) : Math.min(3, candidateScores.length);
+  const shortlist = candidateScores.slice(0, shortlistSize);
+
+  if (difficulty === "hard") {
+    return shortlist[0].play;
   }
 
-  const wantsAction =
-    player.actions.length > 0 &&
-    (
-      selected.numberCard === null ||
-      (difficulty === "easy" && Math.random() < profile.actionBias) ||
-      (difficulty === "medium" && Math.random() < profile.actionBias) ||
-      (difficulty === "hard" &&
-        (
-          selected.numberCard.value <= 5 ||
-          selected.numberCard.value >= 9 ||
-          state.currentRound >= 10 ||
-          Math.random() < profile.actionBias
-        ))
-    );
-
-  if (wantsAction) {
-    const actionPool = sortActionsForDifficulty(player.actions, selected.numberCard ? selected.numberCard.value : 0, difficulty);
-    selected.actionCard = weightedPick(actionPool.slice(0, Math.min(4, actionPool.length)), (card) => {
-      const rank = actionPool.findIndex((entry) => entry.id === card.id);
-      let score = 4 - rank;
-      if (difficulty === "easy") score += Math.random() * 2.4;
-      if (difficulty === "medium") score += Math.random() * 1.4;
-      if (difficulty === "hard") score += Math.random() * 0.8;
-      if (card.type === "steal") score += profile.bluffBias * 0.8;
-      if (card.type === "shield") score += profile.greedBias * 0.45;
-      return score;
-    });
-
-    if (actionNeedsTarget(selected.actionCard)) {
-      selected.targetId = botTargetFor(player, selected.actionCard.type, otherPlayers);
-    }
+  if (difficulty === "medium") {
+    return weightedPick(shortlist, (entry) => Math.max(0.2, entry.score - shortlist[shortlist.length - 1].score + 0.6)).play;
   }
 
-  if (!selected.numberCard && !selected.actionCard && player.actions.length > 0) {
-    selected.actionCard = sortActionsForDifficulty(player.actions, 0, difficulty)[0];
-    if (actionNeedsTarget(selected.actionCard)) {
-      selected.targetId = botTargetFor(player, selected.actionCard.type, otherPlayers);
-    }
-  }
-
-  return selected;
+  return weightedPick(shortlist, (entry) => Math.max(0.15, entry.score - shortlist[shortlist.length - 1].score + 0.35)).play;
 }
 
 function buildHumanPlay() {
@@ -1098,6 +1172,12 @@ function botPoolRating() {
 }
 
 function updateRating(resultScore) {
+  if (!state.ratingActive) {
+    state.lastRatingDelta = 0;
+    state.ratingCommitted = true;
+    ratingResult.textContent = "Rating mode is inactive.";
+    return;
+  }
   const previous = state.rating;
   const opponent = botPoolRating();
   const expected = expectedScore(previous, opponent);
@@ -1112,6 +1192,7 @@ function updateRating(resultScore) {
 }
 
 function applyAbortPenaltyIfNeeded() {
+  if (!state.ratingActive) return false;
   const matchStarted = state.currentRound > 0 || state.phase === "revealing" || state.phase === "finished";
   if (!matchStarted || state.ratingCommitted) return false;
 
@@ -1144,6 +1225,7 @@ function clearLiveMatchState() {
   state.pendingReview = null;
   state.roundHistory = [];
   state.ratingCommitted = false;
+  state.handIntro = false;
   deckStack.classList.remove("dealing");
   winOverlay.hidden = true;
 }
@@ -1152,7 +1234,13 @@ function openPostGameReview() {
   winOverlay.hidden = true;
   setActiveTab("play");
   setPlayScreen("table");
-  reviewSummary.scrollIntoView({ behavior: settingsState.reducedMotion ? "auto" : "smooth", block: "center" });
+  render();
+  window.requestAnimationFrame(() => {
+    reviewSummary.closest(".ribbon-card")?.scrollIntoView({
+      behavior: settingsState.reducedMotion ? "auto" : "smooth",
+      block: "center",
+    });
+  });
 }
 
 function startGame() {
@@ -1174,9 +1262,10 @@ function startGame() {
   state.pendingReview = null;
   state.roundHistory = [];
   state.ratingCommitted = false;
+  state.handIntro = false;
   deckStack.classList.add("dealing");
   winOverlay.hidden = true;
-  ratingResult.textContent = "Rating pending...";
+  ratingResult.textContent = state.ratingActive ? "Rating pending..." : "Rating mode is inactive.";
   setPlayScreen("table");
   setActiveTab("play");
   statusMessage.textContent = "Dealing cards to the table...";
@@ -1184,10 +1273,12 @@ function startGame() {
 
   dealTimer = window.setTimeout(() => {
     state.phase = "playing";
+    state.handIntro = true;
     deckStack.classList.remove("dealing");
     playUiSound("deal");
     statusMessage.textContent = `Hands dealt. ${difficultyLabel(state.difficulty)} AI is ready. Choose your opening play.`;
     render();
+    state.handIntro = false;
   }, 1200);
 }
 
@@ -1237,7 +1328,7 @@ function finishReveal(summary) {
       state.revealMode = "idle";
       render();
       tableClearTimer = null;
-    }, settingsState.reducedMotion ? 1000 : 2200);
+    }, settingsState.reducedMotion ? 1500 : 3000);
   }
 
   render();
@@ -1290,7 +1381,7 @@ function playRound() {
 
 function renderStatus() {
   difficultyPill.textContent = `Difficulty: ${difficultyLabel(displayedDifficulty())}`;
-  tableRatingPill.textContent = `Rating: ${state.rating}`;
+  tableRatingPill.textContent = state.ratingActive ? `Rating: ${state.rating}` : "Rating: Inactive";
   if (state.phase === "waiting") {
     roundLabel.textContent = "No game running";
     phasePill.textContent = "Waiting";
@@ -1319,7 +1410,7 @@ function renderOpponents() {
   const opponents = state.players.filter((player) => !player.isHuman);
   opponentRow.innerHTML = opponents
     .map((player) => {
-      const backCount = Math.min(player.numbers.length + player.actions.length, 6);
+      const backCount = 6;
       const backs = Array.from({ length: backCount }, () => `<span class="card-back"><span class="card-back-glyph">🔮</span></span>`).join("");
       return `
         <article class="opponent-seat">
@@ -1327,7 +1418,6 @@ function renderOpponents() {
             <h3>${player.name}</h3>
             <span class="pill subtle">${difficultyLabel(player.aiDifficulty)} AI</span>
           </div>
-          <div class="opponent-meta">${player.points} DP • ${player.numbers.length} numbers • ${player.actions.length} actions</div>
           <div class="back-fan">${backs}</div>
         </article>
       `;
@@ -1385,12 +1475,7 @@ function renderScoreboard() {
           <span class="pill ${player.isHuman ? "" : "subtle"}">${player.isHuman ? "Human" : `${difficultyLabel(player.aiDifficulty)} AI`}</span>
         </div>
         <strong class="score-points">${player.points} DP</strong>
-        <p class="score-meta">${player.numbers.length} numbers left • ${player.actions.length} actions left</p>
-        <div class="score-reveal">
-          <strong>Last reveal</strong>
-          <span class="score-meta">${player.lastPlayed ? describePlay(player.lastPlayed) : "No rounds resolved yet."}</span>
-          ${player.lastPlayed ? `<span class="score-meta">Final value: ${player.lastPlayed.finalValue}</span>` : ""}
-        </div>
+        <p class="score-meta">${player.isHuman ? "Your standing at the table." : "Opponent score only. Memory matters."}</p>
       </article>
     `)
     .join("");
@@ -1405,21 +1490,18 @@ function renderChoiceGrid(container, cards, kind) {
   container.innerHTML = cards
     .map((card) => {
       const selected = kind === "number" ? card.id === state.selectedNumberId : card.id === state.selectedActionId;
+      const introClass = state.handIntro ? "deal-in" : "";
       return kind === "number"
         ? `
-          <button class="choice-card ${selected ? "selected" : ""}" data-kind="number" data-id="${card.id}" type="button">
+          <button class="choice-card ${selected ? "selected" : ""} ${introClass}" data-kind="number" data-id="${card.id}" type="button">
             <span class="card-art">${numberGlyph(card.value)}</span>
-            <span class="choice-type">Number Card</span>
             <strong class="choice-value">${card.value}</strong>
-            <span class="choice-subtitle">Play for this round</span>
           </button>
         `
         : `
-          <button class="choice-card ${selected ? "selected" : ""}" data-kind="action" data-id="${card.id}" type="button">
+          <button class="choice-card ${selected ? "selected" : ""} ${introClass}" data-kind="action" data-id="${card.id}" type="button">
             <span class="card-art">${actionGlyph(card.type)}</span>
-            <span class="choice-type">Action Card</span>
             <strong class="choice-value">${card.label}</strong>
-            <span class="choice-subtitle">${actionMeta[card.type].needsTarget ? "Needs target" : "No target needed"}</span>
           </button>
         `;
     })
@@ -1442,7 +1524,7 @@ function renderTargetOptions() {
     .map((player) => `
       <button class="target-button ${player.id === state.selectedTargetId ? "selected" : ""}" data-target-id="${player.id}" type="button">
         <strong>${player.name}</strong>
-        <span class="choice-subtitle">${player.points} DP • ${player.numbers.length} numbers left</span>
+        <span class="choice-subtitle">${player.points} DP</span>
       </button>
     `)
     .join("");
@@ -1481,7 +1563,7 @@ function renderSelectionSummary() {
 
 function renderLog() {
   if (!state.logs.length) {
-    roundLog.innerHTML = `<article class="log-entry"><p class="score-meta">The round log will fill in after the first reveal.</p></article>`;
+    roundLog.innerHTML = `<article class="log-entry"><p class="score-meta">The table remembers winners, not every card. Watch closely.</p></article>`;
     return;
   }
 
@@ -1492,12 +1574,7 @@ function renderLog() {
           <h3>${log.title}</h3>
           <span class="pill subtle">${log.outcome}</span>
         </div>
-        <ul>
-          ${log.entries.map((entry) => `<li><strong>${entry.name}</strong>: ${entry.play} → ${entry.finalValue}${entry.note ? ` (${entry.note})` : ""}</li>`).join("")}
-        </ul>
-        <ul>
-          ${log.notes.map((note) => `<li>${note}</li>`).join("")}
-        </ul>
+        <p class="score-meta">${log.notes[log.notes.length - 1] || "The table settles for the next round."}</p>
       </article>
     `)
     .join("");
@@ -1566,11 +1643,13 @@ function renderHands() {
 }
 
 function renderRating() {
-  ratingValue.textContent = String(state.rating);
-  ratingTier.textContent = ratingTierLabel(state.rating);
+  ratingValue.textContent = state.ratingActive ? String(state.rating) : "Dormant";
+  ratingTier.textContent = state.ratingActive ? ratingTierLabel(state.rating) : "Inactive";
   if (state.lastRatingDelta !== 0) {
     const sign = state.lastRatingDelta > 0 ? "+" : "";
     ratingNote.textContent = `Last result: ${sign}${state.lastRatingDelta} rating.`;
+  } else if (!state.ratingActive) {
+    ratingNote.textContent = "Rating mode is currently inactive. Tell me when you want it turned on.";
   } else if (state.phase === "waiting") {
     ratingNote.textContent = "Win matches to climb your local ladder.";
   } else {
